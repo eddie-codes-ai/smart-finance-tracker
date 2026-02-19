@@ -1,0 +1,80 @@
+# ============================================================
+# FLUTTER / DART (frontend/)
+# ============================================================
+
+# Build outputs
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/pubspec.lock
+
+# Android build artifacts
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/app/debug/
+frontend/android/app/release/
+frontend/android/key.properties
+
+# iOS (not used in this project but just in case)
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+
+# ============================================================
+# PYTHON / FLASK (backend/)
+# ============================================================
+
+# Virtual environment - NEVER commit this
+backend/venv/
+
+# Python cache files
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/*.pyo
+backend/*.pyd
+
+# Environment variables file (keep secrets out of GitHub)
+backend/.env
+.env
+
+# Flask instance folder
+backend/instance/
+
+# SQLite database files (runtime data, not source code)
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# ============================================================
+# VS CODE
+# ============================================================
+
+.vscode/
+*.code-workspace
+
+# ============================================================
+# WINDOWS
+# ============================================================
+
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ============================================================
+# GENERAL
+# ============================================================
+
+# OS files
+.DS_Store
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
