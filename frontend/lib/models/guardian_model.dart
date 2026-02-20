@@ -1,13 +1,18 @@
 // lib/models/guardian_model.dart
-// Represents the linked guardian and the latest guardian report.
-// Covers both the 'guardians' and 'guardian_reports' tables in models.py.
+// Two model classes: GuardianModel and GuardianReportModel.
+//
+// FIX: All numeric fields now parsed via (json['field'] as num).toInt()
+// instead of direct `as int` cast. Dart's json.decode() returns JSON numbers
+// as int OR double depending on the platform, so the direct cast fails
+// at runtime when the server sends e.g. score: 72.0 instead of 72.
+// Using (as num).toInt() handles both cases safely.
 
 class GuardianModel {
   final int id;
   final int userId;
   final String phoneNumber;
   final bool isActive;
-  final String? lastNotified; // nullable - null if never notified
+  final String? lastNotified; // null if guardian has never been notified
   final String createdAt;
 
   GuardianModel({
@@ -21,33 +26,30 @@ class GuardianModel {
 
   factory GuardianModel.fromJson(Map<String, dynamic> json) {
     return GuardianModel(
-      id: json['id'],
-      userId: json['user_id'],
-      phoneNumber: json['phone_number'],
-      isActive: json['is_active'],
-      lastNotified: json['last_notified'],
-      createdAt: json['created_at'],
+      id:           (json['id'] as num).toInt(),
+      userId:       (json['user_id'] as num?)?.toInt() ?? 0,
+      phoneNumber:  json['phone_number'] as String,
+      isActive:     json['is_active'] as bool,
+      lastNotified: json['last_notified'] as String?,
+      createdAt:    json['created_at'] as String,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'phone_number': phoneNumber,
-      'is_active': isActive,
-      'last_notified': lastNotified,
-      'created_at': createdAt,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id':            id,
+        'user_id':       userId,
+        'phone_number':  phoneNumber,
+        'is_active':     isActive,
+        'last_notified': lastNotified,
+        'created_at':    createdAt,
+      };
 }
 
-// Separate model for a guardian report record from 'guardian_reports' table.
 class GuardianReportModel {
   final int id;
   final int userId;
   final String reportText;
-  final double score;
+  final int score;      // stored as int 0-100; safe-parsed via (num).toInt()
   final String trigger; // 'auto' | 'manual'
   final String createdAt;
 
@@ -62,23 +64,21 @@ class GuardianReportModel {
 
   factory GuardianReportModel.fromJson(Map<String, dynamic> json) {
     return GuardianReportModel(
-      id: json['id'],
-      userId: json['user_id'],
-      reportText: json['report_text'],
-      score: (json['score'] as num).toDouble(),
-      trigger: json['trigger'],
-      createdAt: json['created_at'],
+      id:          (json['id'] as num).toInt(),
+      userId:      (json['user_id'] as num?)?.toInt() ?? 0,
+      reportText:  json['report_text'] as String,
+      score:       (json['score'] as num).toInt(), // THE FIX
+      trigger:     json['trigger'] as String,
+      createdAt:   json['created_at'] as String,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'report_text': reportText,
-      'score': score,
-      'trigger': trigger,
-      'created_at': createdAt,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id':          id,
+        'user_id':     userId,
+        'report_text': reportText,
+        'score':       score,
+        'trigger':     trigger,
+        'created_at':  createdAt,
+      };
 }

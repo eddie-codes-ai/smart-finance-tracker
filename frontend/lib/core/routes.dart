@@ -47,8 +47,8 @@ class AppRoutes {
       addBudget: (_) => const AddBudgetScreen(),
       reports: (_) => const ReportsScreen(),
       insights: (_) => const InsightsScreen(),
-      goals: (_) => const GoalsScreen(),
-      addGoal: (_) => const AddGoalScreen(),
+      //goals: (_) => const GoalsScreen(),
+      //addGoal: (_) => const AddGoalScreen(),
       guardian: (_) => const GuardianScreen(),
     };
   }
