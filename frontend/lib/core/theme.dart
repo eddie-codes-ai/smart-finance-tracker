@@ -1,130 +1,144 @@
 // lib/core/theme.dart
-// Defines the visual identity of the entire app.
-// All screens use these colors and text styles - never hardcode colors elsewhere.
+// UPDATED in Batch 9: added scoreColor() and categoryColor() static helpers
+// used by dashboard, insights, and reports screens.
 
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // ─── Brand Colors ────────────────────────────────────────────────────────────
-  static const Color primary = Color(0xFF1B5E20);       // Deep green - main brand color
-  static const Color primaryLight = Color(0xFF4CAF50);  // Light green - accents
-  static const Color primaryDark = Color(0xFF003300);   // Dark green - headers
-  static const Color accent = Color(0xFF00BCD4);        // Cyan - highlights
+  // ─── Brand Colors ─────────────────────────────────────────────────────────
+  static const Color primary = Color(0xFF1B5E20);
+  static const Color primaryLight = Color(0xFF4CAF50);
+  static const Color accent = Color(0xFF00BCD4);
 
-  // ─── Background & Surface ───────────────────────────────────────────────────
-  static const Color background = Color(0xFFF5F5F5);    // Light grey page background
-  static const Color surface = Color(0xFFFFFFFF);       // White card background
-  static const Color divider = Color(0xFFE0E0E0);       // Subtle dividers
+  // ─── Semantic Colors ──────────────────────────────────────────────────────
+  static const Color success = Color(0xFF2E7D32);
+  static const Color warning = Color(0xFFF57F17);
+  static const Color error = Color(0xFFC62828);
+  static const Color info = Color(0xFF01579B);
 
-  // ─── Text Colors ────────────────────────────────────────────────────────────
-  static const Color textPrimary = Color(0xFF212121);   // Main text
-  static const Color textSecondary = Color(0xFF757575); // Subtitles, labels
-  static const Color textOnPrimary = Color(0xFFFFFFFF); // Text on green backgrounds
+  // ─── Neutral Colors ───────────────────────────────────────────────────────
+  static const Color background = Color(0xFFF5F6FA);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color divider = Color(0xFFE0E0E0);
+  static const Color textPrimary = Color(0xFF1A1A2E);
+  static const Color textSecondary = Color(0xFF6B7280);
 
-  // ─── Semantic Colors ────────────────────────────────────────────────────────
-  static const Color success = Color(0xFF4CAF50);       // Good financial state
-  static const Color warning = Color(0xFFFF9800);       // At risk state
-  static const Color error = Color(0xFFF44336);         // Critical / overspent
-  static const Color info = Color(0xFF2196F3);          // Neutral info
-
-  // ─── Score Category Colors ──────────────────────────────────────────────────
-  // Used on dashboard score card and insights screen.
+  // ─── Score Category → Color ───────────────────────────────────────────────
+  /// Returns the color matching a financial score category string.
+  /// Used by score cards on Dashboard and Insights.
   static Color scoreColor(String category) {
     switch (category) {
       case 'Elite':
       case 'Excellent':
-        return success;
+        return const Color(0xFF1B5E20);   // deep green
       case 'Very Good':
       case 'Good':
-        return primaryLight;
+        return const Color(0xFF388E3C);   // medium green
       case 'Average':
-        return info;
+        return const Color(0xFF01579B);   // info blue
       case 'At Risk':
-        return warning;
+        return const Color(0xFFF57F17);   // warning orange
       case 'Critical':
-        return error;
+        return const Color(0xFFC62828);   // error red
       default:
-        return textSecondary;
+        return const Color(0xFF6B7280);   // neutral grey
     }
   }
 
-  // ─── Category Colors for Charts ─────────────────────────────────────────────
-  // Used in pie chart to color each expense category slice.
-  static const List<Color> categoryColors = [
-    Color(0xFF4CAF50), // Food
-    Color(0xFF2196F3), // Transport
-    Color(0xFF9C27B0), // Entertainment
-    Color(0xFFFF9800), // Shopping
-    Color(0xFFF44336), // Health
-    Color(0xFF00BCD4), // Education
-    Color(0xFF795548), // Utilities
-    Color(0xFF607D8B), // Rent
-    Color(0xFF9E9E9E), // Other
-  ];
+  // ─── Category Index → Color ───────────────────────────────────────────────
+  /// Returns a distinct color for each expense category index.
+  /// Used by the pie chart in reports_screen.dart.
+  /// 9 colors for 9 expense categories — matches AppConstants.expenseCategories order.
+  static Color categoryColor(int index) {
+    const colors = [
+      Color(0xFF1B5E20), // Food        — deep green
+      Color(0xFF0288D1), // Transport   — blue
+      Color(0xFF7B1FA2), // Entertainment — purple
+      Color(0xFFE65100), // Shopping    — deep orange
+      Color(0xFFC62828), // Health      — red
+      Color(0xFF00695C), // Education   — teal
+      Color(0xFFF57F17), // Utilities   — amber
+      Color(0xFF4527A0), // Rent        — deep purple
+      Color(0xFF546E7A), // Other       — blue grey
+    ];
+    return colors[index % colors.length];
+  }
 
-  // ─── Material Theme ─────────────────────────────────────────────────────────
+  // ─── Theme Data ───────────────────────────────────────────────────────────
   static ThemeData get theme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
-        primary: primary,
-        surface: surface,
-        error: error,
+        brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: background,
 
       // AppBar
       appBarTheme: const AppBarTheme(
-        backgroundColor: primary,
-        foregroundColor: textOnPrimary,
+        backgroundColor: surface,
+        foregroundColor: textPrimary,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         titleTextStyle: TextStyle(
-          fontFamily: 'Roboto',
+          color: textPrimary,
           fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: textOnPrimary,
+          fontWeight: FontWeight.w700,
         ),
+        iconTheme: IconThemeData(color: textPrimary),
       ),
 
       // Cards
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 2,
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: divider, width: 0.5),
         ),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       ),
 
-      // Elevated Buttons
+      // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: textOnPrimary,
-          minimumSize: const Size(double.infinity, 50),
+          foregroundColor: Colors.white,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
           textStyle: const TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
 
-      // Text Buttons
+      // Text Button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
 
-      // Input Fields
+      // Outlined Button
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          side: const BorderSide(color: primary),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+
+      // Input fields
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: divider),
@@ -135,29 +149,42 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: primary, width: 2),
+          borderSide: const BorderSide(color: primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: error),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        labelStyle: const TextStyle(color: textSecondary),
+        labelStyle:
+            const TextStyle(color: textSecondary, fontSize: 14),
+        hintStyle:
+            const TextStyle(color: textSecondary, fontSize: 14),
       ),
 
-      // Bottom Navigation Bar
+      // Bottom Navigation
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: surface,
         selectedItemColor: primary,
         unselectedItemColor: textSecondary,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
+        selectedLabelStyle:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 11),
       ),
 
-      // Floating Action Button
+      // FAB
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primary,
-        foregroundColor: textOnPrimary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+      ),
+
+      // Divider
+      dividerTheme: const DividerThemeData(
+        color: divider,
+        thickness: 0.5,
+        space: 0,
       ),
     );
   }
