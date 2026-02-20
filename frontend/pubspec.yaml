@@ -17,7 +17,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
 
   # Charts - pie and bar graphs
-  fl_chart: ^0.68.0
+  fl_chart: ^0.66.2
 
   # State management
   provider: ^6.1.2
