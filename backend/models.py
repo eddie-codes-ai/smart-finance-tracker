@@ -72,6 +72,7 @@ class Income(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":          self.id,
+            "user_id":     self.user_id,
             "amount":      self.amount,
             "income_type": self.income_type,
             "description": self.description,
@@ -105,6 +106,7 @@ class Expense(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":                   self.id,
+            "user_id":              self.user_id,
             "amount":               self.amount,
             "category":             self.category,
             "description":          self.description,
@@ -142,9 +144,11 @@ class Budget(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":         self.id,
+            "user_id":    self.user_id,
             "category":   self.category,
             "limit":      self.limit,
             "month_year": self.month_year,
+            "created_at": self.created_at.isoformat(),
         }
 
     def __repr__(self):
@@ -173,6 +177,7 @@ class SavingsGoal(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":          self.id,
+            "user_id":     self.user_id,
             "name":        self.name,
             "goal_amount": self.goal_amount,
             "due_date":    self.due_date.isoformat(),
@@ -205,6 +210,7 @@ class Guardian(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":            self.id,
+            "user_id":       self.user_id,
             "phone_number":  self.phone_number,
             "is_active":     self.is_active,
             "last_notified": self.last_notified.isoformat() if self.last_notified else None,

@@ -21,13 +21,14 @@ class ExpenseProvider extends ChangeNotifier {
   int get month => _month;
   int get year => _year;
 
-  /// Total expenses for the loaded period (excludes one-time expenses
-  /// to stay consistent with analysis_service.py behaviour).
-  double get total => _records
-      .where((e) => e.expenseType != 'one-time')
-      .fold(0, (sum, e) => sum + e.amount);
+  /// Total expenses for the loaded period — includes ALL expense types
+  /// so the display matches what the user actually spent.
+  /// One-time expense filtering is handled by analysis_service.py on the
+  /// backend, where it affects daily budget calculations only.
+  double get total => _records.fold(0, (sum, e) => sum + e.amount);
 
-  /// Per-category totals — used by pie chart and budget variance display.
+  /// Per-category totals — excludes one-time expenses to stay consistent
+  /// with analysis_service.py behaviour for budget variance display.
   Map<String, double> get categoryTotals {
     final Map<String, double> totals = {};
     for (final e in _records.where((e) => e.expenseType != 'one-time')) {
