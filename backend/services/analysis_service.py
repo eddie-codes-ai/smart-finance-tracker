@@ -132,6 +132,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
         "emergency_buffer_present":  emergency_buffer_present,
         "emergency_buffer_amount":   round(emergency_buffer_amount, 4),
         "goal_progress":             round(goal_progress, 2),
+        "goal_set":                  primary_goal is not None,
         "day_of_month":              day_of_month,
         "spending_trend":            spending_trend,
         "salary_burn_rate":          round(salary_burn_rate, 2),

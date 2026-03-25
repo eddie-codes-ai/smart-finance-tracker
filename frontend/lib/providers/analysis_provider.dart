@@ -20,22 +20,35 @@ class AnalysisProvider extends ChangeNotifier {
 
   // ─── Analyze ─────────────────────────────────────────────────────────────────
   /// Calls POST /api/analyze and stores the full result.
-  /// Optionally pass month/year — defaults to current month on backend.
+  /// If the backend returns has_data: false (no transactions yet),
+  /// _result is left null so the dashboard shows the empty card prompt.
   /// Returns true on success.
   Future<bool> analyze({int? month, int? year}) async {
     _setLoading(true);
     try {
       final data = await ApiClient.analyze(month: month, year: year);
+
+      // No-data guard — new account or month with no transactions.
+      // Leave _result as null so hasResult stays false and the dashboard
+      // shows the empty card instead of a misleading score.
+      if (data['has_data'] == false) {
+        _result = null;
+        _errorMessage = null;
+        return true;
+      }
+
       _result = AnalysisResultModel.fromJson(data);
       _errorMessage = null;
       return true;
     } on ApiException catch (e) {
       _errorMessage = e.message;
       return false;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('ANALYSIS ERROR: $e');
+      print('STACK: $stackTrace');
       _errorMessage = 'Analysis failed. Check your connection.';
       return false;
-    } finally {
+    }finally {
       _setLoading(false);
     }
   }

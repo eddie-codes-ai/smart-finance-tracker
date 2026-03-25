@@ -167,34 +167,34 @@ class FinancialAdvisor(KnowledgeEngine):
     # GOAL ACHIEVEMENT RULES
     # =========================================================
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: x < 10)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: x < 10)))
     def goal_no_progress(self):
         self.advice.append("Critical: Less than 10% of your savings goal achieved. Immediate action required.")
         self.score -= 30
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: 10 <= x < 30)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: 10 <= x < 30)))
     def goal_low_progress(self):
         self.advice.append("Low progress towards savings goal (10%-30%). Increase your savings efforts.")
         self.score -= 20
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: 30 <= x < 50)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: 30 <= x < 50)))
     def goal_moderate_progress(self):
         self.advice.append("Moderate savings goal progress (30%-50%). Keep pushing forward.")
         self.score -= 10
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: 50 <= x < 70)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: 50 <= x < 70)))
     def goal_good_progress(self):
         self.advice.append("Good progress toward savings goal (50%-70%). Stay focused!")
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: 70 <= x < 90)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: 70 <= x < 90)))
     def goal_very_good_progress(self):
         self.advice.append("Very good savings goal achievement (70%-90%). Almost there!")
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: 90 <= x <= 100)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: 90 <= x <= 100)))
     def goal_almost_achieved(self):
         self.advice.append("Excellent: Near or complete achievement of savings goal. Outstanding!")
 
-    @Rule(FinancialProfile(goal_progress=P(lambda x: x > 100)))
+    @Rule(FinancialProfile(goal_set=True, goal_progress=P(lambda x: x > 100)))
     def goal_exceeded(self):
         self.advice.append("WOW: You have exceeded your savings goal! True financial discipline.")
 

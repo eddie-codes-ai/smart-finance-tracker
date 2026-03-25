@@ -344,7 +344,19 @@ def analyze():
 
     # Steps 1 & 2
     payload = compute_analysis_payload(user_id, month, year)
-    result  = run_analysis(payload)
+    # No-data guard — skip engine if user has no transactions yet
+    if payload["income"] == 0 and payload["expenses"] == 0:
+        result = {
+            "has_data":   False,
+            "score":      None,
+            "category":   None,
+            "persona":    None,
+            "projection": None,
+            "advice":     [],
+            "is_urgent":  False,
+        }
+    else:
+        result = run_analysis(payload)
 
     # Step 3 — auto-notify guardian if urgent
     auto_notify_status = None
@@ -360,6 +372,7 @@ def analyze():
 
     # Step 4 — return full results
     return success({
+        "has_data":          result.get("has_data", True),
         "period":            payload["period"],
         "score":             result["score"],
         "category":          result["category"],
@@ -376,6 +389,11 @@ def analyze():
         "goal_health":       payload["goal_health"],
         "category_variance": payload["category_variance"],
         "auto_notify":       auto_notify_status,
+        "day_of_month":      payload["day_of_month"],
+        "spending_trend":    payload["spending_trend"],
+        "salary_burn_rate":  payload["salary_burn_rate"],
+        "emergency_buffer_present": payload["emergency_buffer_present"],
+        "goal_progress":     payload["goal_progress"],
     })
 
 

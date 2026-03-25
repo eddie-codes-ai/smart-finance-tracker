@@ -67,6 +67,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final income = context.watch<IncomeProvider>();
     final expense = context.watch<ExpenseProvider>();
 
+    // Determine goal banner text — show even when no goal is set.
+    final goalHealth = analysis.hasResult
+        ? analysis.result!.goalHealth
+        : '';
+    final noGoalSet = goalHealth == 'No savings goal set.';
+    final showGoalBanner = analysis.hasResult;
+
     return RefreshIndicator(
       onRefresh: _refresh,
       color: AppTheme.primary,
@@ -98,17 +105,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 20),
 
-            // ── Goal Health Banner ─────────────────────────────────────────
-            if (analysis.hasResult &&
-                analysis.result!.goalHealth.isNotEmpty)
-              _buildGoalBanner(analysis.result!.goalHealth),
+            // ── Goal Health Banner — always shown when analysis has result ──
+            if (showGoalBanner)
+              _buildGoalBanner(goalHealth, noGoalSet),
 
             const SizedBox(height: 20),
 
             // ── Recent Transactions ────────────────────────────────────────
-            _buildSectionHeader('Recent Transactions', onSeeAll: () {
-              // Switch to Transactions tab — handled by MainShell
-            }),
+            _buildSectionHeader('Recent Transactions', onSeeAll: () {}),
 
             _buildRecentTransactions(income, expense),
           ],
@@ -247,7 +251,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Score progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -258,7 +261,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Spending trend chip
           Row(
             children: [
               _trendIcon(result.spendingTrend),
@@ -420,37 +422,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ─── Goal Banner ──────────────────────────────────────────────────────────
-  Widget _buildGoalBanner(String goalHealth) {
-    final isGood = goalHealth.toLowerCase().contains('on track') ||
-        goalHealth.toLowerCase().contains('achieved');
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: (isGood ? AppTheme.success : AppTheme.warning).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: (isGood ? AppTheme.success : AppTheme.warning).withOpacity(0.3),
+  // Always tappable — navigates to goals screen.
+  // When no goal is set: shows a prompt to set one.
+  // When goal is set: shows current goal health status.
+  Widget _buildGoalBanner(String goalHealth, bool noGoalSet) {
+    final Color color;
+    final IconData icon;
+    final String message;
+
+    if (noGoalSet) {
+      color = AppTheme.primary;
+      icon = Icons.flag_outlined;
+      message = 'No savings goal set. Tap to set one →';
+    } else {
+      final isGood = goalHealth.toLowerCase().contains('on track') ||
+          goalHealth.toLowerCase().contains('achieved');
+      color = isGood ? AppTheme.success : AppTheme.warning;
+      icon = Icons.flag_outlined;
+      message = goalHealth;
+    }
+
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, AppRoutes.goals),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.flag_outlined,
-            size: 18,
-            color: isGood ? AppTheme.success : AppTheme.warning,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              goalHealth,
-              style: TextStyle(
-                fontSize: 13,
-                color: isGood ? AppTheme.success : AppTheme.warning,
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontSize: 13, color: color),
               ),
             ),
-          ),
-        ],
+            Icon(Icons.chevron_right, size: 18, color: color),
+          ],
+        ),
       ),
     );
   }
@@ -485,7 +499,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     IncomeProvider income,
     ExpenseProvider expense,
   ) {
-    // Combine income and expense records, sort by date, take latest 5.
     final transactions = [
       ...income.records.map((r) => _TransactionItem(
             label: r.description.isNotEmpty ? r.description : r.incomeType,
@@ -557,7 +570,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: Row(
             children: [
-              // Icon
               Container(
                 width: 40,
                 height: 40,
@@ -573,7 +585,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Label + date
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,7 +609,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
-              // Amount
               Text(
                 '${t.isIncome ? '+' : '-'} ${AppConstants.currency} ${fmt.format(t.amount)}',
                 style: TextStyle(

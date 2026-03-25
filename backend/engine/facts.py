@@ -15,6 +15,7 @@ class FinancialProfile(Fact):
     emergency_buffer_present= Field(bool,  mandatory=True)   # >= 10% income remaining
     emergency_buffer_amount = Field(float, mandatory=True)   # buffer as % of income
     goal_progress           = Field(float, mandatory=True)   # % toward savings goal
+    goal_set                = Field(bool,  mandatory=True)   # True if student has an active savings goal
     day_of_month            = Field(int,   mandatory=True)   # current day (1-31)
     spending_trend          = Field(str,   mandatory=True)   # 'improving' | 'stable' | 'worsening_slow' | 'worsening_fast'
     salary_burn_rate        = Field(float, mandatory=True)   # % of salary burned by mid-month

@@ -153,8 +153,6 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onFabPressed() {
-    // On Dashboard tab — show a modal to choose income or expense.
-    // On Transactions tab — same modal.
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -175,6 +173,7 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
             const SizedBox(height: 20),
+
             // Add Income option
             ListTile(
               leading: Container(
@@ -195,7 +194,9 @@ class _MainShellState extends State<MainShell> {
                 Navigator.pushNamed(context, AppRoutes.addIncome);
               },
             ),
+
             const SizedBox(height: 8),
+
             // Add Expense option
             ListTile(
               leading: Container(
@@ -216,6 +217,30 @@ class _MainShellState extends State<MainShell> {
                 Navigator.pushNamed(context, AppRoutes.addExpense);
               },
             ),
+
+            const SizedBox(height: 8),
+
+            // Add Savings Goal option
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.flag_outlined, color: AppTheme.primary),
+              ),
+              title: const Text(
+                'Add Savings Goal',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text('Set a new savings target'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.addGoal);
+              },
+            ),
+
             const SizedBox(height: 16),
           ],
         ),

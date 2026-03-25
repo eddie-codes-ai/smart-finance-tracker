@@ -42,6 +42,7 @@ def run_analysis(payload: dict) -> dict:
         emergency_buffer_present = bool(payload.get("emergency_buffer_present", False)),
         emergency_buffer_amount  = _safe_float(payload.get("emergency_buffer_amount")),
         goal_progress            = _safe_float(payload.get("goal_progress")),
+        goal_set                 = bool(payload.get("goal_set", False)),
         day_of_month             = _safe_int(payload.get("day_of_month", datetime.now().day)),
         spending_trend           = payload.get("spending_trend", "stable"),
         salary_burn_rate         = _safe_float(payload.get("salary_burn_rate")),
