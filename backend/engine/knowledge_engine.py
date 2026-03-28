@@ -21,6 +21,7 @@ def run_analysis(payload: dict) -> dict:
         emergency_buffer_present(bool)
         emergency_buffer_amount (float)
         goal_progress           (float)
+        goal_set                (bool)
         day_of_month            (int)
         spending_trend          (str)
         salary_burn_rate        (float)
@@ -52,7 +53,9 @@ def run_analysis(payload: dict) -> dict:
     ))
 
     advisor.run()
-    advisor.finalize()
+
+    # Pass expense_rate so finalize() can set the spending projection string.
+    advisor.finalize(expense_rate=_safe_float(payload.get("expense_rate")))
 
     return {
         "score":        advisor.score,

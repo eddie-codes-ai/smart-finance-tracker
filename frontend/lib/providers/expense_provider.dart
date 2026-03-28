@@ -1,8 +1,6 @@
 // lib/providers/expense_provider.dart
-// Manages expense records for the currently viewed month/year.
-// Also exposes per-category totals used by the budget and reports screens.
-
 import 'package:flutter/material.dart';
+import '../core/notification_service.dart';   // ← NEW IMPORT
 import '../data/remote/api_client.dart';
 import '../models/expense_model.dart';
 
@@ -12,23 +10,18 @@ class ExpenseProvider extends ChangeNotifier {
   String? _errorMessage;
 
   int _month = DateTime.now().month;
-  int _year = DateTime.now().year;
+  int _year  = DateTime.now().year;
 
   // ─── Getters ─────────────────────────────────────────────────────────────────
-  List<ExpenseModel> get records => _records;
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  int get month => _month;
-  int get year => _year;
+  List<ExpenseModel> get records     => _records;
+  bool               get isLoading   => _isLoading;
+  String?            get errorMessage => _errorMessage;
+  int                get month        => _month;
+  int                get year         => _year;
 
-  /// Total expenses for the loaded period — includes ALL expense types
-  /// so the display matches what the user actually spent.
-  /// One-time expense filtering is handled by analysis_service.py on the
-  /// backend, where it affects daily budget calculations only.
-  double get total => _records.fold(0, (sum, e) => sum + e.amount);
+  double get total =>
+      _records.fold(0, (sum, e) => sum + e.amount);
 
-  /// Per-category totals — excludes one-time expenses to stay consistent
-  /// with analysis_service.py behaviour for budget variance display.
   Map<String, double> get categoryTotals {
     final Map<String, double> totals = {};
     for (final e in _records.where((e) => e.expenseType != 'one-time')) {
@@ -40,7 +33,7 @@ class ExpenseProvider extends ChangeNotifier {
   // ─── Fetch ───────────────────────────────────────────────────────────────────
   Future<void> fetchExpenses({int? month, int? year}) async {
     _month = month ?? _month;
-    _year = year ?? _year;
+    _year  = year  ?? _year;
     _setLoading(true);
     try {
       final data = await ApiClient.getExpenses(month: _month, year: _year);
@@ -64,19 +57,39 @@ class ExpenseProvider extends ChangeNotifier {
     required String description,
     required String expenseType,
     String? recurrenceInterval,
+    double? budgetLimit,          // ← NEW: pass from UI if a budget is set
   }) async {
     _setLoading(true);
     try {
+      // Snapshot the category total BEFORE the new expense is added.
+      // One-time expenses are excluded to match categoryTotals logic.
+      final double previousTotal =
+          expenseType != 'one-time' ? (categoryTotals[category] ?? 0.0) : 0.0;
+
       final data = await ApiClient.addExpense(
-        amount: amount,
-        category: category,
-        description: description,
-        expenseType: expenseType,
-        recurrenceInterval: recurrenceInterval,
+        amount:              amount,
+        category:            category,
+        description:         description,
+        expenseType:         expenseType,
+        recurrenceInterval:  recurrenceInterval,
       );
+
       final newRecord = ExpenseModel.fromJson(data['expense']);
       _records.insert(0, newRecord);
       _errorMessage = null;
+
+      // Fire a local notification if a budget limit was supplied
+      // and the expense type affects the budget (not one-time).
+      if (budgetLimit != null && expenseType != 'one-time') {
+        final double newTotal = previousTotal + amount;
+        await NotificationService.instance.checkAndNotify(
+          category:      category,
+          previousTotal: previousTotal,
+          newTotal:      newTotal,
+          limit:         budgetLimit,
+        );
+      }
+
       return true;
     } on ApiException catch (e) {
       _errorMessage = e.message;

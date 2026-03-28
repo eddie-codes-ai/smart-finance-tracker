@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../providers/expense_provider.dart';
+import '../../providers/budget_provider.dart';
 import '../../providers/analysis_provider.dart';
 
 class AddExpenseScreen extends StatefulWidget {
@@ -62,6 +63,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final recurrence =
         _selectedExpenseType == 'recurring' ? _selectedRecurrence : null;
 
+    // Look up the budget limit for the selected category.
+    // Returns null if the student has not set a budget for this category —
+    // in that case no notification will fire (nothing to compare against).
+    final double? budgetLimit =
+        context.read<BudgetProvider>().limitFor(_selectedCategory);
+
     final provider = context.read<ExpenseProvider>();
     final success = await provider.addExpense(
       amount: double.parse(_amountController.text.trim()),
@@ -69,6 +76,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       description: _descriptionController.text.trim(),
       expenseType: _selectedExpenseType,
       recurrenceInterval: recurrence,
+      budgetLimit: budgetLimit, // ← triggers notification check in provider
     );
 
     if (!mounted) return;

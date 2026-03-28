@@ -11,10 +11,10 @@ class FinancialAdvisor(KnowledgeEngine):
 
     def __init__(self):
         super().__init__()
-        self.advice   = []
-        self.score    = 100
-        self.category = ""
-        self.persona  = ""
+        self.advice     = []
+        self.score      = 100
+        self.category   = ""
+        self.persona    = ""
         self.projection = ""
 
     # =========================================================
@@ -258,8 +258,14 @@ class FinancialAdvisor(KnowledgeEngine):
     # FINALIZATION
     # =========================================================
 
-    def finalize(self):
-        """Assign financial persona, category, and projection after all rules fire."""
+    def finalize(self, expense_rate: float = 0.0):
+        """
+        Assign financial persona, category, and projection after all rules fire.
+
+        Args:
+            expense_rate: % of income spent this period — used to set projection.
+                          Passed in from knowledge_engine.run_analysis().
+        """
 
         # Clamp score between 0 and 100
         self.score = max(0, min(100, self.score))
@@ -301,3 +307,27 @@ class FinancialAdvisor(KnowledgeEngine):
             self.persona = "Risk Taker (Negligent Financial Habits)"
         else:
             self.persona = "Financial Free-Faller (Critical Emergency)"
+
+        # expense_rate → Spending Projection
+        # Tells the student what their month-end finances will look like
+        # if they continue spending at the current pace.
+        if expense_rate >= 100:
+            self.projection = (
+                "Projected deficit: You have already spent all your income. "
+                "You are in negative savings territory this month."
+            )
+        elif expense_rate >= 80:
+            self.projection = (
+                "High risk: At your current pace you will exhaust your income "
+                "before month-end. Immediate spending reduction required."
+            )
+        elif expense_rate >= 60:
+            self.projection = (
+                "Caution: On track to spend 60%-80% of income this month. "
+                "You will have limited savings unless spending slows down."
+            )
+        else:
+            self.projection = (
+                "On track: Current spending pace suggests a healthy surplus "
+                "at month-end. Keep up the discipline."
+            )
