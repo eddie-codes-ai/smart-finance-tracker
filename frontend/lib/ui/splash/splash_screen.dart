@@ -54,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     Navigator.pushReplacementNamed(
       context,
-      hasSession ? AppRoutes.dashboard : AppRoutes.login,
+      hasSession ? AppRoutes.shell : AppRoutes.login,
     );
   }
 

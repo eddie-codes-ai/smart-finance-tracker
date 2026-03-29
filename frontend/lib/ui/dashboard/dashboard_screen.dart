@@ -3,6 +3,11 @@
 // Displays: financial score card, income/expenses/savings summary,
 // recent transactions list, and a goal health banner.
 // Calls analyze() on first load to populate the score and advice.
+//
+// FIX: Wrapped build() return in Material(color: AppTheme.background)
+// to prevent yellow-underline / dark-background rendering issue that
+// occurs with useMaterial3:true when scaffoldBackgroundColor is not
+// inherited properly through IndexedStack on some Flutter/Impeller builds.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,7 +43,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final now = DateTime.now();
 
-    // Run all three calls in parallel for speed.
     await Future.wait([
       context.read<AnalysisProvider>().analyze(
             month: now.month,
@@ -62,60 +66,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    final auth     = context.watch<AuthProvider>();
     final analysis = context.watch<AnalysisProvider>();
-    final income = context.watch<IncomeProvider>();
-    final expense = context.watch<ExpenseProvider>();
+    final income   = context.watch<IncomeProvider>();
+    final expense  = context.watch<ExpenseProvider>();
 
-    // Determine goal banner text — show even when no goal is set.
-    final goalHealth = analysis.hasResult
-        ? analysis.result!.goalHealth
-        : '';
-    final noGoalSet = goalHealth == 'No savings goal set.';
+    final goalHealth  = analysis.hasResult ? analysis.result!.goalHealth : '';
+    final noGoalSet   = goalHealth == 'No savings goal set.';
     final showGoalBanner = analysis.hasResult;
 
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      color: AppTheme.primary,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Greeting ───────────────────────────────────────────────────
-            _buildGreeting(auth.user?.username ?? 'Student'),
+    // Material wrapper ensures correct background colour and text styling
+    // even when rendered inside IndexedStack with useMaterial3:true theme.
+    return Material(
+      color: AppTheme.background,
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        color: AppTheme.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Greeting ─────────────────────────────────────────────────
+              _buildGreeting(auth.user?.username ?? 'Student'),
 
-            // ── Score Card ─────────────────────────────────────────────────
-            if (analysis.isLoading)
-              _buildScoreCardSkeleton()
-            else if (analysis.hasResult)
-              _buildScoreCard(analysis.result!)
-            else
-              _buildScoreCardEmpty(analysis.errorMessage),
+              // ── Score Card ───────────────────────────────────────────────
+              if (analysis.isLoading)
+                _buildScoreCardSkeleton()
+              else if (analysis.hasResult)
+                _buildScoreCard(analysis.result!)
+              else
+                _buildScoreCardEmpty(analysis.errorMessage),
 
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // ── Summary Cards ──────────────────────────────────────────────
-            _buildSummaryRow(
-              income: income.total,
-              expenses: expense.total,
-              savings: income.total - expense.total,
-            ),
+              // ── Summary Cards ─────────────────────────────────────────────
+              _buildSummaryRow(
+                income:   income.total,
+                expenses: expense.total,
+                savings:  income.total - expense.total,
+              ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // ── Goal Health Banner — always shown when analysis has result ──
-            if (showGoalBanner)
-              _buildGoalBanner(goalHealth, noGoalSet),
+              // ── Goal Health Banner ────────────────────────────────────────
+              if (showGoalBanner)
+                _buildGoalBanner(goalHealth, noGoalSet),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // ── Recent Transactions ────────────────────────────────────────
-            _buildSectionHeader('Recent Transactions', onSeeAll: () {}),
-
-            _buildRecentTransactions(income, expense),
-          ],
+              // ── Recent Transactions ───────────────────────────────────────
+              _buildSectionHeader('Recent Transactions', onSeeAll: () {}),
+              _buildRecentTransactions(income, expense),
+            ],
+          ),
         ),
       ),
     );
@@ -245,10 +250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 6),
           Text(
             result.persona,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 16),
           ClipRRect(
@@ -256,7 +258,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: LinearProgressIndicator(
               value: result.score / 100,
               backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(Colors.white),
               minHeight: 6,
             ),
           ),
@@ -267,10 +270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 6),
               Text(
                 _trendLabel(result.spendingTrend),
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
               const Spacer(),
               TextButton(
@@ -323,7 +323,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               size: 40, color: AppTheme.textSecondary),
           const SizedBox(height: 12),
           Text(
-            error ?? 'Add income and expenses to see your financial score.',
+            error ??
+                'Add income and expenses to see your financial score.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppTheme.textSecondary),
           ),
@@ -345,28 +346,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Expanded(
             child: _summaryCard(
-              label: 'Income',
+              label:  'Income',
               amount: '${AppConstants.currency} ${fmt.format(income)}',
-              icon: Icons.arrow_downward,
-              color: AppTheme.success,
+              icon:   Icons.arrow_downward,
+              color:  AppTheme.success,
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: _summaryCard(
-              label: 'Expenses',
+              label:  'Expenses',
               amount: '${AppConstants.currency} ${fmt.format(expenses)}',
-              icon: Icons.arrow_upward,
-              color: AppTheme.error,
+              icon:   Icons.arrow_upward,
+              color:  AppTheme.error,
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: _summaryCard(
-              label: 'Savings',
+              label:  'Savings',
               amount: '${AppConstants.currency} ${fmt.format(savings)}',
-              icon: Icons.savings_outlined,
-              color: savings >= 0 ? AppTheme.info : AppTheme.warning,
+              icon:   Icons.savings_outlined,
+              color:  savings >= 0 ? AppTheme.info : AppTheme.warning,
             ),
           ),
         ],
@@ -375,10 +376,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _summaryCard({
-    required String label,
-    required String amount,
+    required String  label,
+    required String  amount,
     required IconData icon,
-    required Color color,
+    required Color   color,
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -422,23 +423,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ─── Goal Banner ──────────────────────────────────────────────────────────
-  // Always tappable — navigates to goals screen.
-  // When no goal is set: shows a prompt to set one.
-  // When goal is set: shows current goal health status.
   Widget _buildGoalBanner(String goalHealth, bool noGoalSet) {
     final Color color;
     final IconData icon;
     final String message;
 
     if (noGoalSet) {
-      color = AppTheme.primary;
-      icon = Icons.flag_outlined;
+      color   = AppTheme.primary;
+      icon    = Icons.flag_outlined;
       message = 'No savings goal set. Tap to set one →';
     } else {
       final isGood = goalHealth.toLowerCase().contains('on track') ||
           goalHealth.toLowerCase().contains('achieved');
-      color = isGood ? AppTheme.success : AppTheme.warning;
-      icon = Icons.flag_outlined;
+      color   = isGood ? AppTheme.success : AppTheme.warning;
+      icon    = Icons.flag_outlined;
       message = goalHealth;
     }
 
@@ -446,7 +444,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onTap: () => Navigator.pushNamed(context, AppRoutes.goals),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(10),
@@ -501,15 +500,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ) {
     final transactions = [
       ...income.records.map((r) => _TransactionItem(
-            label: r.description.isNotEmpty ? r.description : r.incomeType,
-            amount: r.amount,
-            date: r.dateAdded,
+            label:    r.description.isNotEmpty ? r.description : r.incomeType,
+            amount:   r.amount,
+            date:     r.dateAdded,
             isIncome: true,
           )),
       ...expense.records.map((r) => _TransactionItem(
-            label: r.description.isNotEmpty ? r.description : r.category,
-            amount: r.amount,
-            date: r.dateAdded,
+            label:    r.description.isNotEmpty ? r.description : r.category,
+            amount:   r.amount,
+            date:     r.dateAdded,
             isIncome: false,
             category: r.category,
           )),
@@ -520,7 +519,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (income.isLoading || expense.isLoading) {
       return const Padding(
         padding: EdgeInsets.all(32),
-        child: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+        child: Center(
+            child: CircularProgressIndicator(color: AppTheme.primary)),
       );
     }
 
@@ -550,13 +550,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: recent.length,
       itemBuilder: (context, index) {
-        final t = recent[index];
-        final fmt = NumberFormat('#,##0.00', 'en_US');
-        final dateFmt = DateFormat('dd MMM').format(DateTime.parse(t.date));
+        final t       = recent[index];
+        final fmt     = NumberFormat('#,##0.00', 'en_US');
+        final dateFmt =
+            DateFormat('dd MMM').format(DateTime.parse(t.date));
 
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(12),
@@ -574,14 +576,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: (t.isIncome ? AppTheme.success : AppTheme.error)
-                      .withOpacity(0.1),
+                  color:
+                      (t.isIncome ? AppTheme.success : AppTheme.error)
+                          .withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  t.isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                  t.isIncome
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward,
                   size: 18,
-                  color: t.isIncome ? AppTheme.success : AppTheme.error,
+                  color:
+                      t.isIncome ? AppTheme.success : AppTheme.error,
                 ),
               ),
               const SizedBox(width: 12),
@@ -600,7 +606,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      t.isIncome ? dateFmt : '${t.category} · $dateFmt',
+                      t.isIncome
+                          ? dateFmt
+                          : '${t.category} · $dateFmt',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSecondary,
@@ -614,7 +622,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
-                  color: t.isIncome ? AppTheme.success : AppTheme.error,
+                  color:
+                      t.isIncome ? AppTheme.success : AppTheme.error,
                 ),
               ),
             ],
@@ -630,19 +639,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color color;
     switch (trend) {
       case 'improving':
-        icon = Icons.trending_up;
+        icon  = Icons.trending_up;
         color = Colors.white;
         break;
       case 'worsening_fast':
-        icon = Icons.trending_down;
+        icon  = Icons.trending_down;
         color = Colors.white;
         break;
       case 'worsening_slow':
-        icon = Icons.trending_down;
+        icon  = Icons.trending_down;
         color = Colors.white70;
         break;
       default:
-        icon = Icons.trending_flat;
+        icon  = Icons.trending_flat;
         color = Colors.white70;
     }
     return Icon(icon, size: 16, color: color);
@@ -650,25 +659,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _trendLabel(String trend) {
     switch (trend) {
-      case 'improving':
-        return 'Spending improving';
-      case 'worsening_fast':
-        return 'Spending worsening fast';
-      case 'worsening_slow':
-        return 'Spending worsening slowly';
-      default:
-        return 'Spending stable';
+      case 'improving':       return 'Spending improving';
+      case 'worsening_fast':  return 'Spending worsening fast';
+      case 'worsening_slow':  return 'Spending worsening slowly';
+      default:                return 'Spending stable';
     }
   }
 }
 
-// Internal model for combining income and expense into one list.
+// ─── Internal model ───────────────────────────────────────────────────────────
 class _TransactionItem {
-  final String label;
-  final double amount;
-  final String date;
-  final bool isIncome;
-  final String category;
+  final String  label;
+  final double  amount;
+  final String  date;
+  final bool    isIncome;
+  final String  category;
 
   _TransactionItem({
     required this.label,

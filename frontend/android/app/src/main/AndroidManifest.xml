@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Required for local notifications on Android 13+ (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Required for M-Pesa SMS inbox reading (Tab 1 of M-Pesa Import screen) -->
+    <uses-permission android:name="android.permission.READ_SMS"/>
     <application
         android:label="smart_finance_tracker"
         android:name="${applicationName}"

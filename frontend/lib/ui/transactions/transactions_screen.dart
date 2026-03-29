@@ -1,6 +1,11 @@
 // lib/ui/transactions/transactions_screen.dart
 // Shows combined income and expense history for the current month.
-// Supports month navigation, filtering by type, and swipe-to-delete.
+// Supports month navigation, filtering by type, swipe-to-delete, and edit.
+//
+// CHANGES from original:
+//   1. All tab now also supports swipe-to-delete
+//   2. Edit icon added to every transaction tile
+//   3. Tapping edit navigates to EditTransactionScreen
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +16,7 @@ import '../../providers/income_provider.dart';
 import '../../providers/expense_provider.dart';
 import '../../models/income_model.dart';
 import '../../models/expense_model.dart';
+import 'edit_transaction_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -77,14 +83,34 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     _fetchForMonth(_selectedMonth);
   }
 
+  // ── Navigate to edit screen ───────────────────────────────────────────────
+
+  Future<void> _editExpense(ExpenseModel r) async {
+    final edited = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditTransactionScreen.expense(expense: r),
+      ),
+    );
+    // Refresh list if something was changed
+    if (edited == true) _fetchForMonth(_selectedMonth);
+  }
+
+  Future<void> _editIncome(IncomeModel r) async {
+    final edited = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditTransactionScreen.income(income: r),
+      ),
+    );
+    if (edited == true) _fetchForMonth(_selectedMonth);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ── Month Navigator ────────────────────────────────────────────────
         _buildMonthNavigator(),
-
-        // ── Tab Bar ────────────────────────────────────────────────────────
         Container(
           color: AppTheme.surface,
           child: TabBar(
@@ -99,8 +125,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             ],
           ),
         ),
-
-        // ── Tab Content ────────────────────────────────────────────────────
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -150,9 +174,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     );
   }
 
-  // ─── All Tab ──────────────────────────────────────────────────────────────
+  // ─── All Tab — NOW includes swipe-to-delete ───────────────────────────────
   Widget _buildAllTab() {
-    final income = context.watch<IncomeProvider>();
+    final income  = context.watch<IncomeProvider>();
     final expense = context.watch<ExpenseProvider>();
 
     if (income.isLoading || expense.isLoading) {
@@ -160,9 +184,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           child: CircularProgressIndicator(color: AppTheme.primary));
     }
 
-    // Combine and sort by date descending
     final List<_TxItem> all = [
-      ...income.records.map((r) => _TxItem.fromIncome(r)),
+      ...income.records.map((r)  => _TxItem.fromIncome(r)),
       ...expense.records.map((r) => _TxItem.fromExpense(r)),
     ]..sort((a, b) => b.date.compareTo(a.date));
 
@@ -174,7 +197,19 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: all.length,
-        itemBuilder: (context, index) => _buildTxTile(all[index]),
+        itemBuilder: (context, index) {
+          final item = all[index];
+          // Find the actual model so we can pass it to edit/delete
+          if (item.isIncome) {
+            final model = income.records
+                .firstWhere((r) => r.id == item.id);
+            return _buildDismissibleIncome(model, fromAllTab: true);
+          } else {
+            final model = expense.records
+                .firstWhere((r) => r.id == item.id);
+            return _buildDismissibleExpense(model, fromAllTab: true);
+          }
+        },
       ),
     );
   }
@@ -190,11 +225,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
     if (provider.records.isEmpty) return _buildEmptyState(type: 'income');
 
-    final fmt = NumberFormat('#,##0.00', 'en_US');
-
     return Column(
       children: [
-        // Total banner
         _buildTotalBanner(
           label: 'Total Income',
           amount: provider.total,
@@ -207,10 +239,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: provider.records.length,
-              itemBuilder: (context, index) {
-                final r = provider.records[index];
-                return _buildDismissibleIncome(r, fmt);
-              },
+              itemBuilder: (context, index) =>
+                  _buildDismissibleIncome(provider.records[index]),
             ),
           ),
         ),
@@ -229,8 +259,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
     if (provider.records.isEmpty) return _buildEmptyState(type: 'expense');
 
-    final fmt = NumberFormat('#,##0.00', 'en_US');
-
     return Column(
       children: [
         _buildTotalBanner(
@@ -245,10 +273,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: provider.records.length,
-              itemBuilder: (context, index) {
-                final r = provider.records[index];
-                return _buildDismissibleExpense(r, fmt);
-              },
+              itemBuilder: (context, index) =>
+                  _buildDismissibleExpense(provider.records[index]),
             ),
           ),
         ),
@@ -257,9 +283,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   }
 
   // ─── Dismissible Income Tile ──────────────────────────────────────────────
-  Widget _buildDismissibleIncome(IncomeModel r, NumberFormat fmt) {
+  Widget _buildDismissibleIncome(IncomeModel r,
+      {bool fromAllTab = false}) {
     return Dismissible(
-      key: Key('income_${r.id}'),
+      key: Key('income_${r.id}_${fromAllTab ? 'all' : 'tab'}'),
       direction: DismissDirection.endToStart,
       background: _deleteBackground(),
       confirmDismiss: (_) => _confirmDelete(),
@@ -275,14 +302,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           );
         }
       },
-      child: _buildTxTile(_TxItem.fromIncome(r)),
+      child: _buildTxTile(
+        _TxItem.fromIncome(r),
+        onEdit: () => _editIncome(r),
+      ),
     );
   }
 
   // ─── Dismissible Expense Tile ─────────────────────────────────────────────
-  Widget _buildDismissibleExpense(ExpenseModel r, NumberFormat fmt) {
+  Widget _buildDismissibleExpense(ExpenseModel r,
+      {bool fromAllTab = false}) {
     return Dismissible(
-      key: Key('expense_${r.id}'),
+      key: Key('expense_${r.id}_${fromAllTab ? 'all' : 'tab'}'),
       direction: DismissDirection.endToStart,
       background: _deleteBackground(),
       confirmDismiss: (_) => _confirmDelete(),
@@ -298,15 +329,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           );
         }
       },
-      child: _buildTxTile(_TxItem.fromExpense(r)),
+      child: _buildTxTile(
+        _TxItem.fromExpense(r),
+        onEdit: () => _editExpense(r),
+      ),
     );
   }
 
-  // ─── Transaction Tile ─────────────────────────────────────────────────────
-  Widget _buildTxTile(_TxItem t) {
-    final fmt = NumberFormat('#,##0.00', 'en_US');
-    final dateFmt =
-        DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date));
+  // ─── Transaction Tile — now has edit icon ─────────────────────────────────
+  Widget _buildTxTile(_TxItem t, {VoidCallback? onEdit}) {
+    final fmt     = NumberFormat('#,##0.00', 'en_US');
+    final dateFmt = DateFormat('dd MMM, hh:mm a')
+        .format(DateTime.parse(t.date));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -334,12 +368,15 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              t.isIncome ? Icons.arrow_downward : _categoryIcon(t.category),
+              t.isIncome
+                  ? Icons.arrow_downward
+                  : _categoryIcon(t.category),
               size: 20,
               color: t.isIncome ? AppTheme.success : AppTheme.error,
             ),
           ),
           const SizedBox(width: 12),
+
           // Label + subtitle
           Expanded(
             child: Column(
@@ -368,6 +405,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               ],
             ),
           ),
+
           // Amount
           Text(
             '${t.isIncome ? '+' : '-'} ${AppConstants.currency} ${fmt.format(t.amount)}',
@@ -377,6 +415,26 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               color: t.isIncome ? AppTheme.success : AppTheme.error,
             ),
           ),
+
+          // ── Edit icon ────────────────────────────────────────────────────
+          if (onEdit != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onEdit,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -403,11 +461,15 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         children: [
           Text(label,
               style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: color)),
           Text(
             '${AppConstants.currency} ${fmt.format(amount)}',
             style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w800, color: color),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: color),
           ),
         ],
       ),
@@ -444,7 +506,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         color: AppTheme.error,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(Icons.delete_outline, color: Colors.white, size: 26),
+      child: const Icon(Icons.delete_outline,
+          color: Colors.white, size: 26),
     );
   }
 
@@ -471,37 +534,28 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
   IconData _categoryIcon(String category) {
     switch (category) {
-      case 'Food':
-        return Icons.restaurant_outlined;
-      case 'Transport':
-        return Icons.directions_bus_outlined;
-      case 'Entertainment':
-        return Icons.movie_outlined;
-      case 'Shopping':
-        return Icons.shopping_bag_outlined;
-      case 'Health':
-        return Icons.local_hospital_outlined;
-      case 'Education':
-        return Icons.school_outlined;
-      case 'Utilities':
-        return Icons.bolt_outlined;
-      case 'Rent':
-        return Icons.home_outlined;
-      default:
-        return Icons.category_outlined;
+      case 'Food':         return Icons.restaurant_outlined;
+      case 'Transport':   return Icons.directions_bus_outlined;
+      case 'Entertainment': return Icons.movie_outlined;
+      case 'Shopping':    return Icons.shopping_bag_outlined;
+      case 'Health':      return Icons.local_hospital_outlined;
+      case 'Education':   return Icons.school_outlined;
+      case 'Utilities':   return Icons.bolt_outlined;
+      case 'Rent':        return Icons.home_outlined;
+      default:            return Icons.category_outlined;
     }
   }
 }
 
 // Internal model combining income and expense into one list.
 class _TxItem {
-  final int id;
+  final int    id;
   final String label;
   final String subLabel;
   final String category;
   final double amount;
   final String date;
-  final bool isIncome;
+  final bool   isIncome;
 
   _TxItem({
     required this.id,
@@ -514,22 +568,22 @@ class _TxItem {
   });
 
   factory _TxItem.fromIncome(IncomeModel r) => _TxItem(
-        id: r.id,
-        label: r.description.isNotEmpty ? r.description : r.incomeType,
+        id:       r.id,
+        label:    r.description.isNotEmpty ? r.description : r.incomeType,
         subLabel: r.incomeType,
         category: '',
-        amount: r.amount,
-        date: r.dateAdded,
+        amount:   r.amount,
+        date:     r.dateAdded,
         isIncome: true,
       );
 
   factory _TxItem.fromExpense(ExpenseModel r) => _TxItem(
-        id: r.id,
-        label: r.description.isNotEmpty ? r.description : r.category,
+        id:       r.id,
+        label:    r.description.isNotEmpty ? r.description : r.category,
         subLabel: r.expenseType,
         category: r.category,
-        amount: r.amount,
-        date: r.dateAdded,
+        amount:   r.amount,
+        date:     r.dateAdded,
         isIncome: false,
       );
 }

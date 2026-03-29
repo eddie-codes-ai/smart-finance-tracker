@@ -34,6 +34,15 @@ dependencies:
   # Default Flutter icon package
   cupertino_icons: ^1.0.2
 
+  # M-Pesa SMS inbox reader (Tab 1 — reads SMS directly from phone)
+  flutter_sms_inbox: ^1.0.4
+
+  # Handles READ_SMS permission dialog at runtime
+  permission_handler: ^11.3.1
+
+  # Stores recipient→category memory locally on device
+  shared_preferences: ^2.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

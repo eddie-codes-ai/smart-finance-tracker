@@ -3,6 +3,7 @@
 // Manages the bottom navigation bar and switches between the 5 core screens.
 // All 5 screens are kept alive in the background using IndexedStack so
 // state (scroll position, loaded data) is not lost when switching tabs.
+// CHANGE: Added "Import from M-Pesa" option in the FAB bottom sheet.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -238,6 +239,29 @@ class _MainShellState extends State<MainShell> {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, AppRoutes.addGoal);
+              },
+            ),
+
+            const SizedBox(height: 8),
+
+            // ── NEW: Import from M-Pesa ────────────────────────────────────
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.sms_outlined, color: AppTheme.primary),
+              ),
+              title: const Text(
+                'Import from M-Pesa',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text('Paste or read SMS automatically'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.mpesaImport);
               },
             ),
 
