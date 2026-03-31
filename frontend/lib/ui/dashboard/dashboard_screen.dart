@@ -20,6 +20,7 @@ import '../../providers/analysis_provider.dart';
 import '../../providers/income_provider.dart';
 import '../../providers/expense_provider.dart';
 import '../../models/analysis_result_model.dart';
+import '../helb/helb_banner_widget.dart'; // ← NEW
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -113,6 +114,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // ── Goal Health Banner ────────────────────────────────────────
               if (showGoalBanner)
                 _buildGoalBanner(goalHealth, noGoalSet),
+
+              // ── HELB Semester Planner Banner ──────────────────────────────
+              const HelbBannerWidget(), // ← NEW
 
               const SizedBox(height: 20),
 
@@ -376,10 +380,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _summaryCard({
-    required String  label,
-    required String  amount,
+    required String   label,
+    required String   amount,
     required IconData icon,
-    required Color   color,
+    required Color    color,
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -424,9 +428,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ─── Goal Banner ──────────────────────────────────────────────────────────
   Widget _buildGoalBanner(String goalHealth, bool noGoalSet) {
-    final Color color;
+    final Color   color;
     final IconData icon;
-    final String message;
+    final String  message;
 
     if (noGoalSet) {
       color   = AppTheme.primary;
@@ -495,7 +499,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ─── Recent Transactions ──────────────────────────────────────────────────
   Widget _buildRecentTransactions(
-    IncomeProvider income,
+    IncomeProvider  income,
     ExpenseProvider expense,
   ) {
     final transactions = [
@@ -586,8 +590,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ? Icons.arrow_downward
                       : Icons.arrow_upward,
                   size: 18,
-                  color:
-                      t.isIncome ? AppTheme.success : AppTheme.error,
+                  color: t.isIncome ? AppTheme.success : AppTheme.error,
                 ),
               ),
               const SizedBox(width: 12),
@@ -622,8 +625,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
-                  color:
-                      t.isIncome ? AppTheme.success : AppTheme.error,
+                  color: t.isIncome ? AppTheme.success : AppTheme.error,
                 ),
               ),
             ],
@@ -636,7 +638,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ─── Helpers ──────────────────────────────────────────────────────────────
   Widget _trendIcon(String trend) {
     IconData icon;
-    Color color;
+    Color    color;
     switch (trend) {
       case 'improving':
         icon  = Icons.trending_up;
@@ -669,11 +671,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 // ─── Internal model ───────────────────────────────────────────────────────────
 class _TransactionItem {
-  final String  label;
-  final double  amount;
-  final String  date;
-  final bool    isIncome;
-  final String  category;
+  final String   label;
+  final double   amount;
+  final String   date;
+  final bool     isIncome;
+  final String   category;
 
   _TransactionItem({
     required this.label,

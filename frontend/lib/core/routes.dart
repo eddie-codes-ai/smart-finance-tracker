@@ -1,7 +1,5 @@
 // lib/core/routes.dart
 // All named routes for the app.
-// CHANGE FROM ORIGINAL: added AppRoutes.mpesaImport at the bottom of the
-// constants block, and added its MaterialPageRoute entry in generateRoute().
 
 import 'package:flutter/material.dart';
 
@@ -13,7 +11,7 @@ import '../ui/dashboard/dashboard_screen.dart';
 import '../ui/transactions/transactions_screen.dart';
 import '../ui/transactions/add_income_screen.dart';
 import '../ui/transactions/add_expense_screen.dart';
-import '../ui/transactions/mpesa_import_screen.dart'; // ← NEW
+import '../ui/transactions/mpesa_import_screen.dart';
 import '../ui/budget/budget_screen.dart';
 import '../ui/budget/add_budget_screen.dart';
 import '../ui/goals/goals_screen.dart';
@@ -21,6 +19,7 @@ import '../ui/goals/add_goal_screen.dart';
 import '../ui/reports/reports_screen.dart';
 import '../ui/insights/insights_screen.dart';
 import '../ui/guardian/guardian_screen.dart';
+import '../ui/helb/helb_planner_screen.dart'; // ← NEW
 
 class AppRoutes {
   // ── Existing routes ──────────────────────────────────────────────────────
@@ -39,28 +38,28 @@ class AppRoutes {
   static const String reports       = '/reports';
   static const String insights      = '/insights';
   static const String guardian      = '/guardian';
-
-  // ── NEW ──────────────────────────────────────────────────────────────────
   static const String mpesaImport   = '/mpesa-import';
+  static const String helbPlanner   = '/helb-planner'; // ← NEW
 
-  // ── Static routes map (used by app.dart: routes: AppRoutes.routes) ───────
+  // ── Static routes map ────────────────────────────────────────────────────
   static Map<String, WidgetBuilder> get routes => {
-    splash:       (_) => const SplashScreen(),
-    login:        (_) => const LoginScreen(),
-    register:     (_) => const RegisterScreen(),
-    shell:        (_) => const MainShell(),
-    dashboard:    (_) => const DashboardScreen(),
-    transactions: (_) => const TransactionsScreen(),
-    addIncome:    (_) => const AddIncomeScreen(),
-    addExpense:   (_) => const AddExpenseScreen(),
-    budget:       (_) => const BudgetScreen(),
-    addBudget:    (_) => const AddBudgetScreen(),
-    goals:        (_) => const GoalsScreen(),
-    addGoal:      (_) => const AddGoalScreen(),
-    reports:      (_) => const ReportsScreen(),
-    insights:     (_) => const InsightsScreen(),
-    guardian:     (_) => const GuardianScreen(),
-    mpesaImport:  (_) => const MpesaImportScreen(), // ← NEW
+    splash:        (_) => const SplashScreen(),
+    login:         (_) => const LoginScreen(),
+    register:      (_) => const RegisterScreen(),
+    shell:         (_) => const MainShell(),
+    dashboard:     (_) => const DashboardScreen(),
+    transactions:  (_) => const TransactionsScreen(),
+    addIncome:     (_) => const AddIncomeScreen(),
+    addExpense:    (_) => const AddExpenseScreen(),
+    budget:        (_) => const BudgetScreen(),
+    addBudget:     (_) => const AddBudgetScreen(),
+    goals:         (_) => const GoalsScreen(),
+    addGoal:       (_) => const AddGoalScreen(),
+    reports:       (_) => const ReportsScreen(),
+    insights:      (_) => const InsightsScreen(),
+    guardian:      (_) => const GuardianScreen(),
+    mpesaImport:   (_) => const MpesaImportScreen(),
+    helbPlanner:   (_) => const HelbPlannerScreen(), // ← NEW
   };
 
   // ── Route generator ──────────────────────────────────────────────────────
@@ -96,10 +95,10 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const InsightsScreen());
       case guardian:
         return MaterialPageRoute(builder: (_) => const GuardianScreen());
-
-      // ── NEW ──────────────────────────────────────────────────────────────
       case mpesaImport:
         return MaterialPageRoute(builder: (_) => const MpesaImportScreen());
+      case helbPlanner: // ← NEW
+        return MaterialPageRoute(builder: (_) => const HelbPlannerScreen());
 
       default:
         return MaterialPageRoute(
