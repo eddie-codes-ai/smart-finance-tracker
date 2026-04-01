@@ -6,7 +6,7 @@ class AppConstants {
   // ─── Backend ────────────────────────────────────────────────────────────────
   // 10.0.2.2 is how Android emulator reaches localhost on your PC.
   // Change to your PC's local IP (e.g. 192.168.x.x) for physical device testing.
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  static const String baseUrl = 'https://smart-finance-tracker-production.up.railway.app/api';
 
   // ─── Expense Categories ─────────────────────────────────────────────────────
   // Must match the category values used in the Flask backend exactly.
