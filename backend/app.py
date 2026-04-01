@@ -11,9 +11,12 @@ def create_app():
     app = Flask(__name__)
 
     # ── Configuration ─────────────────────────────────────────────────────────
-    app.config["SQLALCHEMY_DATABASE_URI"]        = os.environ.get(
-        "DATABASE_URL", "sqlite:///finance_tracker.db"
-    )
+    # Fix Railway PostgreSQL URL format (postgres:// → postgresql://)
+    database_url = os.environ.get("DATABASE_URL", "sqlite:///finance_tracker.db")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+    app.config["SQLALCHEMY_DATABASE_URI"]        = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET_KEY"]                 = os.environ.get(
         "JWT_SECRET_KEY", "change-this-secret-in-production"
@@ -33,7 +36,7 @@ def create_app():
         db.create_all()
 
     return app
-#chabge
+
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
