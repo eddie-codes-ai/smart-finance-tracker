@@ -1,7 +1,7 @@
 // lib/data/remote/api_client.dart
 // Central HTTP client for all communication with the Flask backend.
 // Automatically attaches the JWT token to every protected request.
-// All 16 endpoints from routes.py are covered here.
+// All endpoints from routes.py are covered here.
 //
 // Response pattern from Flask:
 //   Success: { "status": "success", ...data }
@@ -15,15 +15,14 @@ import '../local/secure_storage.dart';
 class ApiClient {
   static const String _base = AppConstants.baseUrl;
 
-  // ─── Private Helpers ────────────────────────────────────────────────────────
+  // ─── Private Helpers ──────────────────────────────────────────────────────
 
-  /// Build headers for unauthenticated requests (auth endpoints).
   static Map<String, String> _publicHeaders() {
     return {'Content-Type': 'application/json'};
   }
 
-  /// Build headers for JWT-protected requests.
   /// Reads token from secure storage and attaches it as Bearer.
+  /// All HELB endpoints now use this — fixes the 422 issue.
   static Future<Map<String, String>> _authHeaders() async {
     final token = await SecureStorage.getToken();
     return {
@@ -32,7 +31,6 @@ class ApiClient {
     };
   }
 
-  /// Decode response and throw a readable error if status is not 'success'.
   static Map<String, dynamic> _handle(http.Response response) {
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (body['status'] == 'error') {
@@ -45,8 +43,6 @@ class ApiClient {
   // AUTH
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/auth/register
-  /// Returns { token, user }
   static Future<Map<String, dynamic>> register({
     required String username,
     required String password,
@@ -59,8 +55,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// POST /api/auth/login
-  /// Returns { token, user }
   static Future<Map<String, dynamic>> login({
     required String username,
     required String password,
@@ -77,8 +71,6 @@ class ApiClient {
   // INCOME
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/income
-  /// Returns { message, income }
   static Future<Map<String, dynamic>> addIncome({
     required double amount,
     required String incomeType,
@@ -96,8 +88,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// GET /api/income?month=7&year=2025
-  /// Returns { income: [...] }
   static Future<Map<String, dynamic>> getIncome({
     required int month,
     required int year,
@@ -109,8 +99,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// DELETE /api/income/<id>
-  /// Returns { message }
   static Future<Map<String, dynamic>> deleteIncome(int id) async {
     final response = await http.delete(
       Uri.parse('$_base/income/$id'),
@@ -123,8 +111,6 @@ class ApiClient {
   // EXPENSES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/expenses
-  /// Returns { message, expense }
   static Future<Map<String, dynamic>> addExpense({
     required double amount,
     required String category,
@@ -146,8 +132,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// GET /api/expenses?month=7&year=2025
-  /// Returns { expenses: [...] }
   static Future<Map<String, dynamic>> getExpenses({
     required int month,
     required int year,
@@ -159,8 +143,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// DELETE /api/expenses/<id>
-  /// Returns { message }
   static Future<Map<String, dynamic>> deleteExpense(int id) async {
     final response = await http.delete(
       Uri.parse('$_base/expenses/$id'),
@@ -173,13 +155,10 @@ class ApiClient {
   // BUDGETS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/budgets
-  /// Upserts — creates or updates the limit for a category/month.
-  /// Returns { message }
   static Future<Map<String, dynamic>> setBudget({
     required String category,
     required double limit,
-    required String monthYear, // format: "YYYY-MM"
+    required String monthYear,
   }) async {
     final response = await http.post(
       Uri.parse('$_base/budgets'),
@@ -193,10 +172,8 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// GET /api/budgets?month_year=2025-07
-  /// Returns { budgets: [...] }
   static Future<Map<String, dynamic>> getBudgets({
-    required String monthYear, // format: "YYYY-MM"
+    required String monthYear,
   }) async {
     final response = await http.get(
       Uri.parse('$_base/budgets?month_year=$monthYear'),
@@ -209,12 +186,10 @@ class ApiClient {
   // SAVINGS GOALS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/goals
-  /// Returns { message, goal }
   static Future<Map<String, dynamic>> addGoal({
     required String name,
     required double goalAmount,
-    required String dueDate, // format: "YYYY-MM-DD"
+    required String dueDate,
   }) async {
     final response = await http.post(
       Uri.parse('$_base/goals'),
@@ -228,8 +203,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// GET /api/goals
-  /// Returns { goals: [...] } — only active goals
   static Future<Map<String, dynamic>> getGoals() async {
     final response = await http.get(
       Uri.parse('$_base/goals'),
@@ -238,9 +211,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// DELETE /api/goals/<id>
-  /// Soft-closes the goal (sets is_active = false).
-  /// Returns { message }
   static Future<Map<String, dynamic>> closeGoal(int id) async {
     final response = await http.delete(
       Uri.parse('$_base/goals/$id'),
@@ -253,10 +223,6 @@ class ApiClient {
   // ANALYSIS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/analyze
-  /// Runs Experta engine and returns the full financial analysis.
-  /// Optionally pass month/year — defaults to current month on backend.
-  /// Returns full analysis payload (see AnalysisResultModel).
   static Future<Map<String, dynamic>> analyze({
     int? month,
     int? year,
@@ -277,8 +243,6 @@ class ApiClient {
   // GUARDIAN
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/guardian/link
-  /// Returns { message, guardian }
   static Future<Map<String, dynamic>> linkGuardian({
     required String phoneNumber,
   }) async {
@@ -290,8 +254,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// GET /api/guardian/status
-  /// Returns { linked: bool, guardian: {...} | null }
   static Future<Map<String, dynamic>> getGuardianStatus() async {
     final response = await http.get(
       Uri.parse('$_base/guardian/status'),
@@ -300,8 +262,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// DELETE /api/guardian/unlink
-  /// Returns { message }
   static Future<Map<String, dynamic>> unlinkGuardian() async {
     final response = await http.delete(
       Uri.parse('$_base/guardian/unlink'),
@@ -310,9 +270,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// POST /api/guardian/notify
-  /// Manual trigger — no cooldown applies.
-  /// Returns { message, channel, report }
   static Future<Map<String, dynamic>> notifyGuardian({
     int? month,
     int? year,
@@ -329,8 +286,6 @@ class ApiClient {
     return _handle(response);
   }
 
-  /// GET /api/guardian/report
-  /// Returns { report: {...} | null, message? }
   static Future<Map<String, dynamic>> getGuardianReport() async {
     final response = await http.get(
       Uri.parse('$_base/guardian/report'),
@@ -338,11 +293,54 @@ class ApiClient {
     );
     return _handle(response);
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELB PLAN
+  // Uses the same _authHeaders() as all other endpoints — fixes the 422.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// POST /api/helb-plan — create or update the semester budget plan
+  static Future<Map<String, dynamic>> saveHelbPlan({
+    required String semesterName,
+    required double helbAmount,
+    required String startDate,
+    required String endDate,
+    required Map<String, double> allocations,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$_base/helb-plan'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'semester_name': semesterName,
+        'helb_amount':   helbAmount,
+        'start_date':    startDate,
+        'end_date':      endDate,
+        'allocations':   allocations,
+      }),
+    );
+    return _handle(response);
+  }
+
+  /// GET /api/helb-plan — fetch the student's current semester plan
+  static Future<Map<String, dynamic>> getHelbPlan() async {
+    final response = await http.get(
+      Uri.parse('$_base/helb-plan'),
+      headers: await _authHeaders(),
+    );
+    return _handle(response);
+  }
+
+  /// DELETE /api/helb-plan — permanently delete the semester plan
+  static Future<Map<String, dynamic>> deleteHelbPlan() async {
+    final response = await http.delete(
+      Uri.parse('$_base/helb-plan'),
+      headers: await _authHeaders(),
+    );
+    return _handle(response);
+  }
 }
 
-// ─── ApiException ────────────────────────────────────────────────────────────
-// Thrown by _handle() when the backend returns status: "error".
-// Providers catch this and expose the message to the UI.
+// ─── ApiException ─────────────────────────────────────────────────────────────
 
 class ApiException implements Exception {
   final String message;

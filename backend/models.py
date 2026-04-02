@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+import json
 
 db = SQLAlchemy()
 
@@ -34,6 +35,7 @@ class User(db.Model):
     savings_goals    = db.relationship("SavingsGoal",    backref="owner", lazy=True, cascade="all, delete-orphan")
     guardian         = db.relationship("Guardian",       backref="user",  uselist=False, cascade="all, delete-orphan")
     guardian_reports = db.relationship("GuardianReport", backref="user",  lazy=True, cascade="all, delete-orphan")
+    helb_plan        = db.relationship("HelbPlan",       backref="user",  uselist=False, cascade="all, delete-orphan")
 
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
@@ -55,24 +57,18 @@ class User(db.Model):
 # ─── Income ───────────────────────────────────────────────────────────────────
 
 class Income(db.Model):
-    """
-    Every income record logged by the student.
-    income_type captures the Kenyan student context:
-    HELB disbursements, parental stipends, gig earnings, etc.
-    """
     __tablename__ = "incomes"
 
     id          = db.Column(db.Integer, primary_key=True)
     user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     amount      = db.Column(db.Float, nullable=False)
-    income_type = db.Column(db.String(20), nullable=False, default="monthly")  # from INCOME_TYPES
+    income_type = db.Column(db.String(20), nullable=False, default="monthly")
     description = db.Column(db.String(255), nullable=True)
     date_added  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def to_dict(self) -> dict:
         return {
             "id":          self.id,
-            "user_id":     self.user_id,
             "amount":      self.amount,
             "income_type": self.income_type,
             "description": self.description,
@@ -86,27 +82,20 @@ class Income(db.Model):
 # ─── Expense ──────────────────────────────────────────────────────────────────
 
 class Expense(db.Model):
-    """
-    Every expense record logged by the student.
-    expense_type distinguishes daily spending from one-off
-    purchases and recurring bills — critical for accurate
-    daily budget calculations and overspent day detection.
-    """
     __tablename__ = "expenses"
 
     id                  = db.Column(db.Integer, primary_key=True)
     user_id             = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     amount              = db.Column(db.Float, nullable=False)
-    category            = db.Column(db.String(50), nullable=False)       # from EXPENSE_CATEGORIES
+    category            = db.Column(db.String(50), nullable=False)
     description         = db.Column(db.String(255), nullable=True)
-    expense_type        = db.Column(db.String(20), nullable=False, default="daily")  # from EXPENSE_TYPES
-    recurrence_interval = db.Column(db.String(20), nullable=True)        # from RECURRENCE_CHOICES, only if recurring
+    expense_type        = db.Column(db.String(20), nullable=False, default="daily")
+    recurrence_interval = db.Column(db.String(20), nullable=True)
     date_added          = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def to_dict(self) -> dict:
         return {
             "id":                   self.id,
-            "user_id":              self.user_id,
             "amount":               self.amount,
             "category":             self.category,
             "description":          self.description,
@@ -122,19 +111,13 @@ class Expense(db.Model):
 # ─── Budget ───────────────────────────────────────────────────────────────────
 
 class Budget(db.Model):
-    """
-    Spending limit per category per month per user.
-    month_year format: 'YYYY-MM' e.g. '2025-07'
-    Unique constraint prevents duplicate budgets for the
-    same category in the same month.
-    """
     __tablename__ = "budgets"
 
     id         = db.Column(db.Integer, primary_key=True)
     user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     category   = db.Column(db.String(50), nullable=False)
     limit      = db.Column(db.Float, nullable=False)
-    month_year = db.Column(db.String(7), nullable=False)  # 'YYYY-MM'
+    month_year = db.Column(db.String(7), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (
@@ -144,11 +127,9 @@ class Budget(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":         self.id,
-            "user_id":    self.user_id,
             "category":   self.category,
             "limit":      self.limit,
             "month_year": self.month_year,
-            "created_at": self.created_at.isoformat(),
         }
 
     def __repr__(self):
@@ -158,17 +139,11 @@ class Budget(db.Model):
 # ─── SavingsGoal ──────────────────────────────────────────────────────────────
 
 class SavingsGoal(db.Model):
-    """
-    A student's savings target.
-    Multiple goals supported (e.g. laptop + rent deposit).
-    is_active allows soft-closing a completed goal without
-    losing it from history.
-    """
     __tablename__ = "savings_goals"
 
     id          = db.Column(db.Integer, primary_key=True)
     user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    name        = db.Column(db.String(100), nullable=False)   # e.g. "Rent", "Laptop"
+    name        = db.Column(db.String(100), nullable=False)
     goal_amount = db.Column(db.Float, nullable=False)
     due_date    = db.Column(db.Date, nullable=False)
     date_set    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -177,7 +152,6 @@ class SavingsGoal(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":          self.id,
-            "user_id":     self.user_id,
             "name":        self.name,
             "goal_amount": self.goal_amount,
             "due_date":    self.due_date.isoformat(),
@@ -192,12 +166,6 @@ class SavingsGoal(db.Model):
 # ─── Guardian ─────────────────────────────────────────────────────────────────
 
 class Guardian(db.Model):
-    """
-    Guardian linked to a student account.
-    One guardian per student (uselist=False on User relationship).
-    is_active allows unlinking without losing notification history.
-    last_notified drives the 24-hour auto-notify cooldown.
-    """
     __tablename__ = "guardians"
 
     id            = db.Column(db.Integer, primary_key=True)
@@ -210,7 +178,6 @@ class Guardian(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":            self.id,
-            "user_id":       self.user_id,
             "phone_number":  self.phone_number,
             "is_active":     self.is_active,
             "last_notified": self.last_notified.isoformat() if self.last_notified else None,
@@ -224,18 +191,13 @@ class Guardian(db.Model):
 # ─── GuardianReport ───────────────────────────────────────────────────────────
 
 class GuardianReport(db.Model):
-    """
-    Full history of every message sent to a guardian.
-    Stores the exact text sent, the student's score at that
-    point in time, and whether it was auto or manually triggered.
-    """
     __tablename__ = "guardian_reports"
 
     id          = db.Column(db.Integer, primary_key=True)
     user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     report_text = db.Column(db.Text, nullable=False)
     score       = db.Column(db.Integer, nullable=False)
-    trigger     = db.Column(db.String(10), nullable=False)  # 'auto' | 'manual'
+    trigger     = db.Column(db.String(10), nullable=False)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def to_dict(self) -> dict:
@@ -249,3 +211,54 @@ class GuardianReport(db.Model):
 
     def __repr__(self):
         return f"<GuardianReport score={self.score} trigger={self.trigger}>"
+
+
+# ─── HelbPlan ─────────────────────────────────────────────────────────────────
+
+class HelbPlan(db.Model):
+    """
+    HELB Semester Budget Plan — one per student.
+    Stored in backend DB so it is fully user-specific via JWT.
+    allocations is a JSON string e.g. '{"Food": 5000.0, "Transport": 3000.0}'
+    deserialized to dict in to_dict() for the Flutter client.
+
+    FIX: removed onupdate=datetime.utcnow — not reliably supported by
+    PostgreSQL via SQLAlchemy. updated_at is now set explicitly in the
+    upsert route instead.
+    """
+    __tablename__ = "helb_plans"
+
+    id            = db.Column(db.Integer, primary_key=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True)
+    semester_name = db.Column(db.String(100), nullable=False)
+    helb_amount   = db.Column(db.Float, nullable=False)
+    start_date    = db.Column(db.Date, nullable=False)
+    end_date      = db.Column(db.Date, nullable=False)
+    allocations   = db.Column(db.Text, nullable=False, default="{}")
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # FIX: no onupdate — set explicitly in the route on every update
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def get_allocations(self) -> dict:
+        try:
+            return json.loads(self.allocations)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_allocations(self, allocations_dict: dict):
+        self.allocations = json.dumps(allocations_dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "id":            self.id,
+            "semester_name": self.semester_name,
+            "helb_amount":   self.helb_amount,
+            "start_date":    self.start_date.isoformat(),
+            "end_date":      self.end_date.isoformat(),
+            "allocations":   self.get_allocations(),
+            "created_at":    self.created_at.isoformat(),
+            "updated_at":    self.updated_at.isoformat(),
+        }
+
+    def __repr__(self):
+        return f"<HelbPlan {self.semester_name} KES {self.helb_amount}>"

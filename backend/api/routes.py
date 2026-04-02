@@ -5,7 +5,7 @@ from flask_jwt_extended import (
 from datetime import datetime
 from sqlalchemy import extract
 
-from models import db, User, Income, Expense, Budget, SavingsGoal
+from models import db, User, Income, Expense, Budget, SavingsGoal, HelbPlan
 from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.guardian_service import (
@@ -32,17 +32,12 @@ def error(message: str, status: int = 400):
 
 @api.route("/auth/register", methods=["POST"])
 def register():
-    """
-    POST /api/auth/register
-    Body: { "username": "edwin", "password": "secret" }
-    """
-    data     = request.get_json()
+    data     = request.get_json(force=True, silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")
 
     if not username or not password:
         return error("Username and password are required.")
-
     if User.query.filter_by(username=username).first():
         return error("Username already exists.", 409)
 
@@ -57,11 +52,7 @@ def register():
 
 @api.route("/auth/login", methods=["POST"])
 def login():
-    """
-    POST /api/auth/login
-    Body: { "username": "edwin", "password": "secret" }
-    """
-    data     = request.get_json()
+    data     = request.get_json(force=True, silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")
 
@@ -80,12 +71,8 @@ def login():
 @api.route("/income", methods=["POST"])
 @jwt_required()
 def add_income():
-    """
-    POST /api/income
-    Body: { "amount": 15000, "income_type": "monthly", "description": "HELB" }
-    """
     user_id = int(get_jwt_identity())
-    data    = request.get_json()
+    data    = request.get_json(force=True, silent=True) or {}
 
     amount      = data.get("amount")
     income_type = data.get("income_type", "monthly")
@@ -108,10 +95,6 @@ def add_income():
 @api.route("/income", methods=["GET"])
 @jwt_required()
 def get_income():
-    """
-    GET /api/income?month=7&year=2025
-    Returns all income records for the given period.
-    """
     user_id = int(get_jwt_identity())
     month   = request.args.get("month", datetime.utcnow().month, type=int)
     year    = request.args.get("year",  datetime.utcnow().year,  type=int)
@@ -128,7 +111,6 @@ def get_income():
 @api.route("/income/<int:income_id>", methods=["DELETE"])
 @jwt_required()
 def delete_income(income_id):
-    """DELETE /api/income/<id>"""
     user_id = int(get_jwt_identity())
     record  = Income.query.filter_by(id=income_id, user_id=user_id).first()
     if not record:
@@ -145,15 +127,8 @@ def delete_income(income_id):
 @api.route("/expenses", methods=["POST"])
 @jwt_required()
 def add_expense():
-    """
-    POST /api/expenses
-    Body: {
-        "amount": 500, "category": "Food", "description": "Lunch",
-        "expense_type": "daily", "recurrence_interval": null
-    }
-    """
     user_id = int(get_jwt_identity())
-    data    = request.get_json()
+    data    = request.get_json(force=True, silent=True) or {}
 
     amount              = data.get("amount")
     category            = data.get("category", "Other")
@@ -180,10 +155,6 @@ def add_expense():
 @api.route("/expenses", methods=["GET"])
 @jwt_required()
 def get_expenses():
-    """
-    GET /api/expenses?month=7&year=2025
-    Returns all expense records for the given period.
-    """
     user_id = int(get_jwt_identity())
     month   = request.args.get("month", datetime.utcnow().month, type=int)
     year    = request.args.get("year",  datetime.utcnow().year,  type=int)
@@ -200,7 +171,6 @@ def get_expenses():
 @api.route("/expenses/<int:expense_id>", methods=["DELETE"])
 @jwt_required()
 def delete_expense(expense_id):
-    """DELETE /api/expenses/<id>"""
     user_id = int(get_jwt_identity())
     record  = Expense.query.filter_by(id=expense_id, user_id=user_id).first()
     if not record:
@@ -217,13 +187,8 @@ def delete_expense(expense_id):
 @api.route("/budgets", methods=["POST"])
 @jwt_required()
 def set_budget():
-    """
-    POST /api/budgets
-    Body: { "category": "Food", "limit": 3000, "month_year": "2025-07" }
-    Upserts — updates limit if budget for that category/month already exists.
-    """
     user_id    = int(get_jwt_identity())
-    data       = request.get_json()
+    data       = request.get_json(force=True, silent=True) or {}
     category   = data.get("category")
     limit      = data.get("limit")
     month_year = data.get("month_year", datetime.utcnow().strftime("%Y-%m"))
@@ -252,7 +217,6 @@ def set_budget():
 @api.route("/budgets", methods=["GET"])
 @jwt_required()
 def get_budgets():
-    """GET /api/budgets?month_year=2025-07"""
     user_id    = int(get_jwt_identity())
     month_year = request.args.get("month_year", datetime.utcnow().strftime("%Y-%m"))
     records    = Budget.query.filter_by(user_id=user_id, month_year=month_year).all()
@@ -266,12 +230,8 @@ def get_budgets():
 @api.route("/goals", methods=["POST"])
 @jwt_required()
 def add_goal():
-    """
-    POST /api/goals
-    Body: { "name": "Laptop", "goal_amount": 50000, "due_date": "2025-12-01" }
-    """
     user_id      = int(get_jwt_identity())
-    data         = request.get_json()
+    data         = request.get_json(force=True, silent=True) or {}
     name         = data.get("name", "My Goal")
     goal_amount  = data.get("goal_amount")
     due_date_str = data.get("due_date")
@@ -300,7 +260,6 @@ def add_goal():
 @api.route("/goals", methods=["GET"])
 @jwt_required()
 def get_goals():
-    """GET /api/goals — returns all active savings goals."""
     user_id = int(get_jwt_identity())
     goals   = SavingsGoal.query.filter_by(user_id=user_id, is_active=True).all()
     return success({"goals": [g.to_dict() for g in goals]})
@@ -309,7 +268,6 @@ def get_goals():
 @api.route("/goals/<int:goal_id>", methods=["DELETE"])
 @jwt_required()
 def close_goal(goal_id):
-    """DELETE /api/goals/<id> — soft-closes a goal."""
     user_id = int(get_jwt_identity())
     goal    = SavingsGoal.query.filter_by(id=goal_id, user_id=user_id).first()
     if not goal:
@@ -326,39 +284,14 @@ def close_goal(goal_id):
 @api.route("/analyze", methods=["POST"])
 @jwt_required()
 def analyze():
-    """
-    POST /api/analyze
-    Optional body: { "month": 7, "year": 2025 }
-    Defaults to current month/year if not provided.
-
-    Flow:
-    1. Pull all records from DB for the period via analysis_service
-    2. Run Experta engine via knowledge_engine
-    3. If urgent + guardian linked + cooldown passed → auto-notify guardian
-    4. Return full results to Flutter
-    """
     user_id = int(get_jwt_identity())
-    data    = request.get_json() or {}
+    data    = request.get_json(force=True, silent=True) or {}
     month   = data.get("month", datetime.utcnow().month)
     year    = data.get("year",  datetime.utcnow().year)
 
-    # Steps 1 & 2
     payload = compute_analysis_payload(user_id, month, year)
-    # No-data guard — skip engine if user has no transactions yet
-    if payload["income"] == 0 and payload["expenses"] == 0:
-        result = {
-            "has_data":   False,
-            "score":      None,
-            "category":   None,
-            "persona":    None,
-            "projection": None,
-            "advice":     [],
-            "is_urgent":  False,
-        }
-    else:
-        result = run_analysis(payload)
+    result  = run_analysis(payload)
 
-    # Step 3 — auto-notify guardian if urgent
     auto_notify_status = None
     if result.get("is_urgent"):
         guardian = get_guardian(user_id)
@@ -370,9 +303,7 @@ def analyze():
                 save_report(user_id, report_text, result["score"], trigger="auto")
             auto_notify_status = dispatch_result
 
-    # Step 4 — return full results
     return success({
-        "has_data":          result.get("has_data", True),
         "period":            payload["period"],
         "score":             result["score"],
         "category":          result["category"],
@@ -389,11 +320,6 @@ def analyze():
         "goal_health":       payload["goal_health"],
         "category_variance": payload["category_variance"],
         "auto_notify":       auto_notify_status,
-        "day_of_month":      payload["day_of_month"],
-        "spending_trend":    payload["spending_trend"],
-        "salary_burn_rate":  payload["salary_burn_rate"],
-        "emergency_buffer_present": payload["emergency_buffer_present"],
-        "goal_progress":     payload["goal_progress"],
     })
 
 
@@ -404,12 +330,8 @@ def analyze():
 @api.route("/guardian/link", methods=["POST"])
 @jwt_required()
 def guardian_link():
-    """
-    POST /api/guardian/link
-    Body: { "phone_number": "0712345678" }
-    """
     user_id      = int(get_jwt_identity())
-    data         = request.get_json()
+    data         = request.get_json(force=True, silent=True) or {}
     phone_number = data.get("phone_number", "").strip()
 
     if not phone_number:
@@ -422,7 +344,6 @@ def guardian_link():
 @api.route("/guardian/status", methods=["GET"])
 @jwt_required()
 def guardian_status():
-    """GET /api/guardian/status — is a guardian linked?"""
     user_id  = int(get_jwt_identity())
     guardian = get_guardian(user_id)
     if not guardian:
@@ -433,7 +354,6 @@ def guardian_status():
 @api.route("/guardian/unlink", methods=["DELETE"])
 @jwt_required()
 def guardian_unlink():
-    """DELETE /api/guardian/unlink — soft-deactivate guardian link."""
     user_id = int(get_jwt_identity())
     removed = unlink_guardian(user_id)
     if not removed:
@@ -444,19 +364,13 @@ def guardian_unlink():
 @api.route("/guardian/notify", methods=["POST"])
 @jwt_required()
 def guardian_notify():
-    """
-    POST /api/guardian/notify
-    Manual trigger — student explicitly sends a report to their guardian.
-    Optional body: { "month": 7, "year": 2025 }
-    No cooldown applies to manual triggers.
-    """
     user_id  = int(get_jwt_identity())
     guardian = get_guardian(user_id)
 
     if not guardian:
         return error("No active guardian linked. Please link a guardian first.", 404)
 
-    data  = request.get_json() or {}
+    data  = request.get_json(force=True, silent=True) or {}
     month = data.get("month", datetime.utcnow().month)
     year  = data.get("year",  datetime.utcnow().year)
 
@@ -480,9 +394,123 @@ def guardian_notify():
 @api.route("/guardian/report", methods=["GET"])
 @jwt_required()
 def guardian_report():
-    """GET /api/guardian/report — fetch the latest guardian report."""
     user_id = int(get_jwt_identity())
     report  = get_latest_report(user_id)
     if not report:
         return success({"report": None, "message": "No reports sent yet."})
     return success({"report": report.to_dict()})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELB PLAN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api.route("/helb-plan", methods=["POST"])
+@jwt_required()
+def upsert_helb_plan():
+    """
+    POST /api/helb-plan
+    Creates or updates the student's HELB semester budget plan.
+    One plan per student — upsert pattern.
+
+    FIX: uses request.get_json(force=True, silent=True) to handle
+    cases where Flutter doesn't send Content-Type: application/json.
+    Wraps DB operations in try/except to return clean error messages
+    instead of a 500 or 422.
+    """
+    user_id = int(get_jwt_identity())
+    data    = request.get_json(force=True, silent=True) or {}
+
+    semester_name  = data.get("semester_name", "").strip()
+    helb_amount    = data.get("helb_amount")
+    start_date_str = data.get("start_date")
+    end_date_str   = data.get("end_date")
+    allocations    = data.get("allocations", {})
+
+    # ── Validation ────────────────────────────────────────────────────────────
+    if not semester_name:
+        return error("Semester name is required.")
+    if not helb_amount or float(helb_amount) <= 0:
+        return error("A valid HELB amount is required.")
+    if not start_date_str or not end_date_str:
+        return error("Start date and end date are required.")
+
+    try:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date   = datetime.strptime(end_date_str,   "%Y-%m-%d").date()
+    except ValueError:
+        return error("Invalid date format. Use YYYY-MM-DD.")
+
+    if end_date <= start_date:
+        return error("End date must be after start date.")
+
+    if not isinstance(allocations, dict):
+        return error("Allocations must be a JSON object.")
+
+    # ── Upsert ────────────────────────────────────────────────────────────────
+    try:
+        now  = datetime.utcnow()
+        plan = HelbPlan.query.filter_by(user_id=user_id).first()
+
+        if plan:
+            # Update existing plan
+            plan.semester_name = semester_name
+            plan.helb_amount   = float(helb_amount)
+            plan.start_date    = start_date
+            plan.end_date      = end_date
+            plan.updated_at    = now
+            plan.set_allocations({k: float(v) for k, v in allocations.items()})
+        else:
+            # Create new plan — set both timestamps explicitly for PostgreSQL
+            plan = HelbPlan(
+                user_id       = user_id,
+                semester_name = semester_name,
+                helb_amount   = float(helb_amount),
+                start_date    = start_date,
+                end_date      = end_date,
+                created_at    = now,
+                updated_at    = now,
+            )
+            plan.set_allocations({k: float(v) for k, v in allocations.items()})
+            db.session.add(plan)
+
+        db.session.commit()
+        return success({"message": "HELB plan saved.", "plan": plan.to_dict()}, 201)
+
+    except Exception as e:
+        db.session.rollback()
+        return error(f"Failed to save plan: {str(e)}", 500)
+
+
+@api.route("/helb-plan", methods=["GET"])
+@jwt_required()
+def get_helb_plan():
+    """
+    GET /api/helb-plan
+    Returns the student's HELB plan or null if none exists.
+    """
+    user_id = int(get_jwt_identity())
+    try:
+        plan = HelbPlan.query.filter_by(user_id=user_id).first()
+        if not plan:
+            return success({"plan": None})
+        return success({"plan": plan.to_dict()})
+    except Exception as e:
+        return error(f"Failed to fetch plan: {str(e)}", 500)
+
+
+@api.route("/helb-plan", methods=["DELETE"])
+@jwt_required()
+def delete_helb_plan():
+    """DELETE /api/helb-plan — permanently removes the student's plan."""
+    user_id = int(get_jwt_identity())
+    try:
+        plan = HelbPlan.query.filter_by(user_id=user_id).first()
+        if not plan:
+            return error("No HELB plan found.", 404)
+        db.session.delete(plan)
+        db.session.commit()
+        return success({"message": "HELB plan deleted."})
+    except Exception as e:
+        db.session.rollback()
+        return error(f"Failed to delete plan: {str(e)}", 500)
