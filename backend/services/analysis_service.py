@@ -223,8 +223,13 @@ def _evaluate_goal_health(goal: SavingsGoal, savings: float) -> str:
 
     if savings >= goal.goal_amount:
         return "Goal already achieved! Congratulations!"
+
     if expected_by_now <= 0:
-        return "Goal period has not started yet."
+        if savings > 0:
+            pct = (savings / goal.goal_amount) * 100
+            return f"Great start! You've already saved {pct:.1f}% of your goal."
+        return "Goal period has just started. Start saving to meet your target!"
+
     if savings >= expected_by_now:
         return "On track to meet your goal. Keep it up!"
 
