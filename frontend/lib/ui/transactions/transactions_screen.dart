@@ -1,7 +1,8 @@
 // lib/ui/transactions/transactions_screen.dart
 // Shows income, expense, and goal contribution history.
 // Four tabs: All | Income | Expenses | Savings
-// Savings tab shows goal contributions with goal name and optional note.
+// Deleting income or expense auto-triggers analysis so dashboard updates
+// immediately without a manual pull-to-refresh.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../providers/income_provider.dart';
 import '../../providers/expense_provider.dart';
+import '../../providers/analysis_provider.dart';
 import '../../models/income_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/goal_contribution_model.dart';
@@ -29,8 +31,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   late DateTime _selectedMonth;
   bool _initialLoadDone = false;
 
-  // Contributions loaded locally — not in a provider since they're
-  // display-only in this screen and don't affect other screens.
   List<GoalContributionModel> _contributions = [];
   bool _contributionsLoading = false;
 
@@ -173,7 +173,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           Text(
             DateFormat('MMMM yyyy').format(_selectedMonth),
             style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary),
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
@@ -195,7 +197,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           child: CircularProgressIndicator(color: AppTheme.primary));
     }
 
-    // Merge all three types into one sorted list
     final List<_TxItem> all = [
       ...income.records.map((r)  => _TxItem.fromIncome(r)),
       ...expense.records.map((r) => _TxItem.fromExpense(r)),
@@ -215,10 +216,12 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           if (item.isContribution) {
             return _buildContributionTile(item);
           } else if (item.isIncome) {
-            final model = income.records.firstWhere((r) => r.id == item.id);
+            final model =
+                income.records.firstWhere((r) => r.id == item.id);
             return _buildDismissibleIncome(model, fromAllTab: true);
           } else {
-            final model = expense.records.firstWhere((r) => r.id == item.id);
+            final model =
+                expense.records.firstWhere((r) => r.id == item.id);
             return _buildDismissibleExpense(model, fromAllTab: true);
           }
         },
@@ -292,13 +295,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       return const Center(
           child: CircularProgressIndicator(color: AppTheme.primary));
     }
-
     if (_contributions.isEmpty) {
       return _buildEmptyState(type: 'savings');
     }
-
-    final total = _contributions.fold(0.0, (sum, c) => sum + c.amount);
-
+    final total =
+        _contributions.fold(0.0, (sum, c) => sum + c.amount);
     return Column(
       children: [
         _buildTotalBanner(
@@ -312,8 +313,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _contributions.length,
-              itemBuilder: (context, index) =>
-                  _buildContributionTile(_TxItem.fromContribution(_contributions[index])),
+              itemBuilder: (context, index) => _buildContributionTile(
+                  _TxItem.fromContribution(_contributions[index])),
             ),
           ),
         ),
@@ -324,7 +325,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   // ─── Contribution Tile ────────────────────────────────────────────────────
   Widget _buildContributionTile(_TxItem t) {
     final fmt     = NumberFormat('#,##0.00', 'en_US');
-    final dateFmt = DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date));
+    final dateFmt =
+        DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -341,7 +343,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       ),
       child: Row(
         children: [
-          // Icon
           Container(
             width: 42,
             height: 42,
@@ -353,8 +354,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 size: 20, color: AppTheme.primary),
           ),
           const SizedBox(width: 12),
-
-          // Label + subtitle
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,8 +378,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               ],
             ),
           ),
-
-          // Amount
           Text(
             '- ${AppConstants.currency} ${fmt.format(t.amount)}',
             style: const TextStyle(
@@ -394,7 +391,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   }
 
   // ─── Dismissible Income Tile ──────────────────────────────────────────────
-  Widget _buildDismissibleIncome(IncomeModel r, {bool fromAllTab = false}) {
+  Widget _buildDismissibleIncome(IncomeModel r,
+      {bool fromAllTab = false}) {
     return Dismissible(
       key: Key('income_${r.id}_${fromAllTab ? 'all' : 'tab'}'),
       direction: DismissDirection.endToStart,
@@ -403,19 +401,30 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       onDismissed: (_) async {
         final success =
             await context.read<IncomeProvider>().deleteIncome(r.id);
-        if (!success && mounted) {
+        if (!mounted) return;
+        if (success) {
+          // Auto-trigger analysis so dashboard score + balance update
+          // immediately without needing a manual pull-to-refresh.
+          final now = DateTime.now();
+          context.read<AnalysisProvider>().analyze(
+            month: now.month,
+            year: now.year,
+          );
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Failed to delete income record.'),
             backgroundColor: AppTheme.error,
           ));
         }
       },
-      child: _buildTxTile(_TxItem.fromIncome(r), onEdit: () => _editIncome(r)),
+      child: _buildTxTile(_TxItem.fromIncome(r),
+          onEdit: () => _editIncome(r)),
     );
   }
 
   // ─── Dismissible Expense Tile ─────────────────────────────────────────────
-  Widget _buildDismissibleExpense(ExpenseModel r, {bool fromAllTab = false}) {
+  Widget _buildDismissibleExpense(ExpenseModel r,
+      {bool fromAllTab = false}) {
     return Dismissible(
       key: Key('expense_${r.id}_${fromAllTab ? 'all' : 'tab'}'),
       direction: DismissDirection.endToStart,
@@ -424,7 +433,16 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       onDismissed: (_) async {
         final success =
             await context.read<ExpenseProvider>().deleteExpense(r.id);
-        if (!success && mounted) {
+        if (!mounted) return;
+        if (success) {
+          // Auto-trigger analysis so dashboard score + balance update
+          // immediately without needing a manual pull-to-refresh.
+          final now = DateTime.now();
+          context.read<AnalysisProvider>().analyze(
+            month: now.month,
+            year: now.year,
+          );
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Failed to delete expense record.'),
             backgroundColor: AppTheme.error,
@@ -439,8 +457,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   // ─── Transaction Tile ─────────────────────────────────────────────────────
   Widget _buildTxTile(_TxItem t, {VoidCallback? onEdit}) {
     final fmt     = NumberFormat('#,##0.00', 'en_US');
-    final dateFmt = DateFormat('dd MMM, hh:mm a')
-        .format(DateTime.parse(t.date));
+    final dateFmt =
+        DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -466,7 +484,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              t.isIncome ? Icons.arrow_downward : _categoryIcon(t.category),
+              t.isIncome
+                  ? Icons.arrow_downward
+                  : _categoryIcon(t.category),
               size: 20,
               color: t.isIncome ? AppTheme.success : AppTheme.error,
             ),
@@ -542,10 +562,14 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         children: [
           Text(label,
               style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: color)),
           Text('${AppConstants.currency} ${fmt.format(amount)}',
               style: TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: color)),
         ],
       ),
     );
@@ -554,10 +578,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   Widget _buildEmptyState({String? type}) {
     String message;
     switch (type) {
-      case 'income':   message = 'No income recorded this month.'; break;
-      case 'expense':  message = 'No expenses recorded this month.'; break;
-      case 'savings':  message = 'No goal contributions this month.\nTap a goal to start contributing.'; break;
-      default:         message = 'No transactions this month.';
+      case 'income':
+        message = 'No income recorded this month.';
+        break;
+      case 'expense':
+        message = 'No expenses recorded this month.';
+        break;
+      case 'savings':
+        message =
+            'No goal contributions this month.\nTap a goal to start contributing.';
+        break;
+      default:
+        message = 'No transactions this month.';
     }
     return Center(
       child: Column(
@@ -588,7 +620,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         color: AppTheme.error,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(Icons.delete_outline, color: Colors.white, size: 26),
+      child:
+          const Icon(Icons.delete_outline, color: Colors.white, size: 26),
     );
   }
 
@@ -597,7 +630,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Record'),
-        content: const Text('This record will be permanently deleted.'),
+        content:
+            const Text('This record will be permanently deleted.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -605,7 +639,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+            style:
+                TextButton.styleFrom(foregroundColor: AppTheme.error),
             child: const Text('Delete'),
           ),
         ],

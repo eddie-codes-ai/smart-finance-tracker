@@ -1,7 +1,9 @@
 // lib/ui/goals/goals_screen.dart
 // Lists all active savings goals with progress toward each.
-// Progress is now based on explicit contributions, not net savings.
+// Progress is based on explicit contributions, not net savings.
 // Each goal card shows: Contributed | Still Needed | Add Contribution button.
+// After a contribution is added, analysis is re-run automatically so the
+// dashboard score and balance update without a manual pull-to-refresh.
 // Swipe left to mark complete, FAB to add a new goal.
 
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../core/routes.dart';
 import '../../providers/goals_provider.dart';
+import '../../providers/analysis_provider.dart';
 import '../../models/savings_goal_model.dart';
 
 class GoalsScreen extends StatefulWidget {
@@ -217,14 +220,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
                   const SizedBox(height: 12),
 
-                  // Contributed | Still needed row
+                  // Contributed | Still needed | Progress row
                   Row(
                     children: [
                       Expanded(
                         child: _statBox(
                           label: 'Contributed',
-                          value:
-                              '${AppConstants.currency} ${fmt.format(contributed)}',
+                          value: '${AppConstants.currency} ${fmt.format(contributed)}',
                           color: AppTheme.success,
                         ),
                       ),
@@ -242,8 +244,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       Expanded(
                         child: _statBox(
                           label: 'Progress',
-                          value:
-                              '${goal.progressPercent.toStringAsFixed(1)}%',
+                          value: '${goal.progressPercent.toStringAsFixed(1)}%',
                           color: progressColor,
                         ),
                       ),
@@ -324,7 +325,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       bottomRight: Radius.circular(14),
                     ),
                     border: Border(
-                      top: BorderSide(color: AppTheme.primary.withOpacity(0.15)),
+                      top: BorderSide(
+                          color: AppTheme.primary.withOpacity(0.15)),
                     ),
                   ),
                   child: Row(
@@ -401,7 +403,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           Text(
                             'Already saved: ${AppConstants.currency} ${NumberFormat('#,##0.00', 'en_US').format(goal.totalContributed)}',
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.textSecondary),
+                                fontSize: 12,
+                                color: AppTheme.textSecondary),
                           ),
                         ],
                       ),
@@ -453,12 +456,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   children: [500, 1000, 2000, 5000, 10000]
                       .map((amt) => ActionChip(
                             label: Text('$amt'),
-                            onPressed: () => amountController.text =
-                                amt.toString(),
+                            onPressed: () =>
+                                amountController.text = amt.toString(),
                             backgroundColor: AppTheme.surface,
                             labelStyle: const TextStyle(
                                 fontSize: 12, color: AppTheme.primary),
-                            side: const BorderSide(color: AppTheme.primary),
+                            side:
+                                const BorderSide(color: AppTheme.primary),
                           ))
                       .toList(),
                 ),
@@ -476,7 +480,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   controller: noteController,
                   textInputAction: TextInputAction.done,
                   decoration: const InputDecoration(
-                    hintText: 'e.g. Saved from HELB, Monthly deposit...',
+                    hintText:
+                        'e.g. Saved from HELB, Monthly deposit...',
                     prefixIcon: Icon(Icons.note_outlined),
                   ),
                 ),
@@ -502,7 +507,21 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                     : noteController.text.trim(),
                               );
                               if (!mounted) return;
+
+                              // Close the bottom sheet first.
                               Navigator.pop(ctx);
+
+                              // If contribution succeeded, re-run analysis
+                              // so dashboard score + balance update immediately
+                              // without needing a manual pull-to-refresh.
+                              if (success) {
+                                final now = DateTime.now();
+                                context.read<AnalysisProvider>().analyze(
+                                  month: now.month,
+                                  year: now.year,
+                                );
+                              }
+
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(success
@@ -521,11 +540,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                  strokeWidth: 2,
+                                  color: Colors.white),
                             )
                           : const Icon(Icons.savings_outlined),
-                      label: Text(
-                          prov.isContributing ? 'Saving...' : 'Add Contribution'),
+                      label: Text(prov.isContributing
+                          ? 'Saving...'
+                          : 'Add Contribution'),
                     ),
                   ),
                 ),
@@ -582,7 +603,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
           const Text(
             'No active savings goals.',
             style: TextStyle(
-                fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -592,7 +614,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.addGoal),
+            onPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.addGoal),
             icon: const Icon(Icons.add),
             label: const Text('Add Your First Goal'),
           ),
