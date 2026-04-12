@@ -1,4 +1,6 @@
 // lib/core/routes.dart
+// UPDATED: Added profile route constant and ProfileScreen registration.
+
 import 'package:flutter/material.dart';
 import 'package:frontend/ui/splash/splash_screen.dart';
 import 'package:frontend/ui/auth/login_screen.dart';
@@ -18,6 +20,7 @@ import 'package:frontend/ui/goals/add_goal_screen.dart';
 import 'package:frontend/ui/guardian/guardian_screen.dart';
 import 'package:frontend/ui/helb/helb_planner_screen.dart';
 import 'package:frontend/ui/transactions/mpesa_import_screen.dart';
+import 'package:frontend/ui/profile/profile_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -40,7 +43,8 @@ class AppRoutes {
   static const String addGoal        = '/add-goal';
   static const String guardian       = '/guardian';
   static const String helbPlanner    = '/helb-planner';
-  static const String mpesaImport    = '/mpesa-import';  
+  static const String mpesaImport    = '/mpesa-import';
+  static const String profile        = '/profile';
 
   static final Map<String, WidgetBuilder> routes = {
     splash:         (_) => const SplashScreen(),
@@ -61,5 +65,6 @@ class AppRoutes {
     guardian:       (_) => const GuardianScreen(),
     helbPlanner:    (_) => const HelbPlannerScreen(),
     mpesaImport:    (_) => const MpesaImportScreen(),
+    profile:        (_) => const ProfileScreen(),
   };
 }

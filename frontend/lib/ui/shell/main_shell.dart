@@ -1,9 +1,5 @@
 // lib/ui/shell/main_shell.dart
-// The main app shell after login.
-// Manages the bottom navigation bar and switches between the 5 core screens.
-// All 5 screens are kept alive in the background using IndexedStack so
-// state (scroll position, loaded data) is not lost when switching tabs.
-// CHANGE: Added "Import from M-Pesa" option in the FAB bottom sheet.
+// UPDATED: Added person icon to AppBar for navigating to the Profile screen.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,7 +22,6 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  // All 5 main screens — IndexedStack keeps them alive between tab switches.
   final List<Widget> _screens = const [
     DashboardScreen(),
     TransactionsScreen(),
@@ -68,10 +63,15 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar changes title based on which tab is active.
       appBar: AppBar(
         title: Text(_appBarTitle()),
         actions: [
+          // Profile / Account Settings
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Account Settings',
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.profile),
+          ),
           // Guardian shortcut
           IconButton(
             icon: const Icon(Icons.shield_outlined),
@@ -87,13 +87,11 @@ class _MainShellState extends State<MainShell> {
         ],
       ),
 
-      // IndexedStack keeps all screens mounted — no data reload on tab switch.
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
 
-      // Floating action button on Dashboard and Transactions tabs only.
       floatingActionButton: _currentIndex <= 1
           ? FloatingActionButton(
               onPressed: _onFabPressed,
@@ -138,18 +136,12 @@ class _MainShellState extends State<MainShell> {
 
   String _appBarTitle() {
     switch (_currentIndex) {
-      case 0:
-        return 'Dashboard';
-      case 1:
-        return 'Transactions';
-      case 2:
-        return 'Budget';
-      case 3:
-        return 'Reports';
-      case 4:
-        return 'Insights';
-      default:
-        return 'Smart Finance';
+      case 0:  return 'Dashboard';
+      case 1:  return 'Transactions';
+      case 2:  return 'Budget';
+      case 3:  return 'Reports';
+      case 4:  return 'Insights';
+      default: return 'Smart Finance';
     }
   }
 
@@ -175,7 +167,6 @@ class _MainShellState extends State<MainShell> {
             ),
             const SizedBox(height: 20),
 
-            // Add Income option
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(8),
@@ -185,20 +176,15 @@ class _MainShellState extends State<MainShell> {
                 ),
                 child: const Icon(Icons.arrow_downward, color: AppTheme.success),
               ),
-              title: const Text(
-                'Add Income',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              title: const Text('Add Income', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Log a new income record'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, AppRoutes.addIncome);
               },
             ),
-
             const SizedBox(height: 8),
 
-            // Add Expense option
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(8),
@@ -208,20 +194,15 @@ class _MainShellState extends State<MainShell> {
                 ),
                 child: const Icon(Icons.arrow_upward, color: AppTheme.error),
               ),
-              title: const Text(
-                'Add Expense',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              title: const Text('Add Expense', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Log a new expense record'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, AppRoutes.addExpense);
               },
             ),
-
             const SizedBox(height: 8),
 
-            // Add Savings Goal option
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(8),
@@ -231,20 +212,15 @@ class _MainShellState extends State<MainShell> {
                 ),
                 child: const Icon(Icons.flag_outlined, color: AppTheme.primary),
               ),
-              title: const Text(
-                'Add Savings Goal',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              title: const Text('Add Savings Goal', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Set a new savings target'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, AppRoutes.addGoal);
               },
             ),
-
             const SizedBox(height: 8),
 
-            // ── NEW: Import from M-Pesa ────────────────────────────────────
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(8),
@@ -254,17 +230,13 @@ class _MainShellState extends State<MainShell> {
                 ),
                 child: const Icon(Icons.sms_outlined, color: AppTheme.primary),
               ),
-              title: const Text(
-                'Import from M-Pesa',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              title: const Text('Import from M-Pesa', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Paste or read SMS automatically'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, AppRoutes.mpesaImport);
               },
             ),
-
             const SizedBox(height: 16),
           ],
         ),
