@@ -72,6 +72,7 @@ class Income(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":          self.id,
+            "user_id":     self.user_id,
             "amount":      self.amount,
             "income_type": self.income_type,
             "description": self.description,
@@ -99,6 +100,7 @@ class Expense(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":                   self.id,
+            "user_id":              self.user_id,
             "amount":               self.amount,
             "category":             self.category,
             "description":          self.description,
@@ -130,6 +132,7 @@ class Budget(db.Model):
     def to_dict(self) -> dict:
         return {
             "id":         self.id,
+            "user_id":    self.user_id,
             "category":   self.category,
             "limit":      self.limit,
             "month_year": self.month_year,
@@ -152,18 +155,61 @@ class SavingsGoal(db.Model):
     date_set    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     is_active   = db.Column(db.Boolean, default=True, nullable=False)
 
+    # Contributions toward this goal
+    contributions = db.relationship(
+        "GoalContribution", backref="goal", lazy=True, cascade="all, delete-orphan"
+    )
+
+    @property
+    def total_contributed(self) -> float:
+        """Sum of all contributions made toward this goal."""
+        return sum(c.amount for c in self.contributions)
+
     def to_dict(self) -> dict:
         return {
-            "id":          self.id,
-            "name":        self.name,
-            "goal_amount": self.goal_amount,
-            "due_date":    self.due_date.isoformat(),
-            "date_set":    self.date_set.isoformat(),
-            "is_active":   self.is_active,
+            "id":                self.id,
+            "user_id":           self.user_id,
+            "name":              self.name,
+            "goal_amount":       self.goal_amount,
+            "total_contributed": self.total_contributed,
+            "due_date":          self.due_date.isoformat(),
+            "date_set":          self.date_set.isoformat(),
+            "is_active":         self.is_active,
         }
 
     def __repr__(self):
         return f"<SavingsGoal {self.name} KES {self.goal_amount}>"
+
+
+# ─── GoalContribution ─────────────────────────────────────────────────────────
+
+class GoalContribution(db.Model):
+    """
+    A single contribution made by a student toward a specific savings goal.
+    Contributions reduce the student's available balance and count toward
+    goal progress. They appear in the transactions history as a distinct type.
+    """
+    __tablename__ = "goal_contributions"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    goal_id    = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    amount     = db.Column(db.Float, nullable=False)
+    note       = db.Column(db.String(255), nullable=True)   # e.g. "Saved from HELB"
+    date_added = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id":         self.id,
+            "goal_id":    self.goal_id,
+            "user_id":    self.user_id,
+            "amount":     self.amount,
+            "note":       self.note,
+            "date_added": self.date_added.isoformat(),
+        }
+
+    def __repr__(self):
+        return f"<GoalContribution goal={self.goal_id} KES {self.amount}>"
 
 
 # ─── Guardian ─────────────────────────────────────────────────────────────────
@@ -232,19 +278,17 @@ class HelbPlan(db.Model):
     helb_amount   = db.Column(db.Float, nullable=False)
     start_date    = db.Column(db.Date, nullable=False)
     end_date      = db.Column(db.Date, nullable=False)
-    allocations   = db.Column(db.Text, nullable=False, default="{}")  # JSON string
+    allocations   = db.Column(db.Text, nullable=False, default="{}")
     created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     def get_allocations(self) -> dict:
-        """Deserialize allocations from JSON string to dict."""
         try:
             return json.loads(self.allocations)
         except (json.JSONDecodeError, TypeError):
             return {}
 
     def set_allocations(self, allocations: dict):
-        """Serialize allocations dict to JSON string."""
         self.allocations = json.dumps(allocations)
 
     def to_dict(self) -> dict:

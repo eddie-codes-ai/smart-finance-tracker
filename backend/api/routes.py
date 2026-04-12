@@ -8,7 +8,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from datetime import datetime, timedelta
 from sqlalchemy import extract
 
-from models import db, User, Income, Expense, Budget, SavingsGoal, HelbPlan
+from models import db, User, Income, Expense, Budget, SavingsGoal, GoalContribution, HelbPlan
 from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.email_service import send_reset_email
@@ -152,37 +152,17 @@ def reset_password_endpoint():
 @api.route("/auth/profile", methods=["PUT"])
 @jwt_required()
 def update_profile():
-    """
-    PUT /api/auth/profile
-    JWT required.
-    Body (all fields optional — only provided fields are updated):
-        {
-            "username":     "new_username",
-            "email":        "new@email.com",
-            "new_password": "newpassword123",
-            "current_password": "currentpassword"   ← required when changing password
-        }
-
-    Rules:
-    - Username must be unique across all users.
-    - Email must be unique across all users.
-    - To change password, current_password must be provided and correct.
-    - At least one field must be provided.
-    """
-    user_id  = int(get_jwt_identity())
-    user     = User.query.get(user_id)
-    data     = request.get_json() or {}
-
+    user_id          = int(get_jwt_identity())
+    user             = User.query.get(user_id)
+    data             = request.get_json() or {}
     new_username     = data.get("username", "").strip() or None
     new_email        = data.get("email", "").strip().lower() or None
     new_password     = data.get("new_password", "") or None
     current_password = data.get("current_password", "") or None
 
-    # At least one field must be provided
     if not any([new_username, new_email, new_password]):
         return error("No changes provided. Supply at least one of: username, email, new_password.")
 
-    # ── Username change ───────────────────────────────────────────────────────
     if new_username:
         if new_username == user.username:
             return error("New username is the same as your current username.")
@@ -190,7 +170,6 @@ def update_profile():
             return error("That username is already taken.", 409)
         user.username = new_username
 
-    # ── Email change ──────────────────────────────────────────────────────────
     if new_email:
         if new_email == user.email:
             return error("New email is the same as your current email.")
@@ -198,7 +177,6 @@ def update_profile():
             return error("That email is already registered.", 409)
         user.email = new_email
 
-    # ── Password change ───────────────────────────────────────────────────────
     if new_password:
         if not current_password:
             return error("Current password is required to set a new password.")
@@ -386,6 +364,96 @@ def close_goal(goal_id):
     return success({"message": "Goal closed."})
 
 
+# ─── Goal Contributions ───────────────────────────────────────────────────────
+
+@api.route("/goals/<int:goal_id>/contribute", methods=["POST"])
+@jwt_required()
+def add_contribution(goal_id):
+    """
+    POST /api/goals/<id>/contribute
+    Body: { "amount": 3000, "note": "Saved from HELB" }
+    Adds a contribution toward the goal. Reduces the student's available balance.
+    """
+    user_id = int(get_jwt_identity())
+    goal    = SavingsGoal.query.filter_by(id=goal_id, user_id=user_id, is_active=True).first()
+    if not goal:
+        return error("Goal not found.", 404)
+
+    data   = request.get_json()
+    amount = data.get("amount")
+    note   = data.get("note", "").strip() or None
+
+    if not amount or float(amount) <= 0:
+        return error("A valid amount is required.")
+
+    contribution = GoalContribution(
+        goal_id    = goal_id,
+        user_id    = user_id,
+        amount     = float(amount),
+        note       = note,
+    )
+    db.session.add(contribution)
+    db.session.commit()
+
+    return success({
+        "message":      "Contribution added.",
+        "contribution": contribution.to_dict(),
+        "goal":         goal.to_dict(),
+    }, 201)
+
+
+@api.route("/goals/<int:goal_id>/contributions", methods=["GET"])
+@jwt_required()
+def get_contributions(goal_id):
+    """
+    GET /api/goals/<id>/contributions
+    Returns all contributions for a specific goal with total contributed.
+    """
+    user_id = int(get_jwt_identity())
+    goal    = SavingsGoal.query.filter_by(id=goal_id, user_id=user_id).first()
+    if not goal:
+        return error("Goal not found.", 404)
+
+    contributions = (
+        GoalContribution.query
+        .filter_by(goal_id=goal_id)
+        .order_by(GoalContribution.date_added.desc())
+        .all()
+    )
+    return success({
+        "contributions":    [c.to_dict() for c in contributions],
+        "total_contributed": goal.total_contributed,
+    })
+
+
+@api.route("/contributions", methods=["GET"])
+@jwt_required()
+def get_all_contributions():
+    """
+    GET /api/contributions?month=4&year=2026
+    Returns all contributions across all goals for the given period.
+    Used by the transactions screen Savings tab.
+    """
+    user_id = int(get_jwt_identity())
+    month   = request.args.get("month", datetime.utcnow().month, type=int)
+    year    = request.args.get("year",  datetime.utcnow().year,  type=int)
+
+    contributions = GoalContribution.query.filter(
+        GoalContribution.user_id == user_id,
+        extract("month", GoalContribution.date_added) == month,
+        extract("year",  GoalContribution.date_added) == year,
+    ).order_by(GoalContribution.date_added.desc()).all()
+
+    # Attach goal name to each contribution for display in transactions
+    result = []
+    for c in contributions:
+        d = c.to_dict()
+        d["goal_name"] = c.goal.name if c.goal else "Unknown Goal"
+        result.append(d)
+
+    return success({"contributions": result})
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -410,22 +478,24 @@ def analyze():
                 save_report(user_id, report_text, result["score"], trigger="auto")
             auto_notify_status = dispatch_result
     return success({
-        "period":            payload["period"],
-        "score":             result["score"],
-        "category":          result["category"],
-        "persona":           result["persona"],
-        "projection":        result["projection"],
-        "advice":            result["advice"],
-        "is_urgent":         result["is_urgent"],
-        "savings":           payload["savings"],
-        "income":            payload["income"],
-        "expenses":          payload["expenses"],
-        "savings_rate":      payload["savings_rate"],
-        "expense_rate":      payload["expense_rate"],
-        "daily_budget":      payload["daily_budget"],
-        "goal_health":       payload["goal_health"],
-        "category_variance": payload["category_variance"],
-        "auto_notify":       auto_notify_status,
+        "period":              payload["period"],
+        "score":               result["score"],
+        "category":            result["category"],
+        "persona":             result["persona"],
+        "projection":          result["projection"],
+        "advice":              result["advice"],
+        "is_urgent":           result["is_urgent"],
+        "savings":             payload["savings"],
+        "balance":             payload["balance"],
+        "total_contributions": payload["total_contributions"],
+        "income":              payload["income"],
+        "expenses":            payload["expenses"],
+        "savings_rate":        payload["savings_rate"],
+        "expense_rate":        payload["expense_rate"],
+        "daily_budget":        payload["daily_budget"],
+        "goal_health":         payload["goal_health"],
+        "category_variance":   payload["category_variance"],
+        "auto_notify":         auto_notify_status,
     })
 
 

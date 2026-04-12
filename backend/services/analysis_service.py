@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, date
 from sqlalchemy import extract
-from models import db, Income, Expense, Budget, SavingsGoal
+from models import db, Income, Expense, Budget, SavingsGoal, GoalContribution
 
 
 # Categories treated as luxury / non-essential
@@ -23,7 +23,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
 
     Returns:
         dict of all computed fields expected by run_analysis() plus
-        extra fields returned to Flutter (savings, daily_budget, etc.)
+        extra fields returned to Flutter (savings, balance, daily_budget, etc.)
     """
     now   = datetime.utcnow()
     month = month or now.month
@@ -48,7 +48,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     ).all()
 
     # Active savings goals only
-    goals = SavingsGoal.query.filter_by(user_id=user_id, is_active=True).all()
+    goals        = SavingsGoal.query.filter_by(user_id=user_id, is_active=True).all()
     primary_goal = goals[0] if goals else None
 
     # ── Totals ────────────────────────────────────────────────────────────────
@@ -59,6 +59,24 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     total_expenses   = sum(e.amount for e in regular_expenses)
 
     savings = total_income - total_expenses
+
+    # ── Goal contributions ────────────────────────────────────────────────────
+    # Total contributed toward the primary goal (used for goal progress)
+    primary_goal_contributed = 0.0
+    if primary_goal:
+        primary_goal_contributed = sum(
+            c.amount for c in GoalContribution.query.filter_by(goal_id=primary_goal.id).all()
+        )
+
+    # Total contributions across ALL active goals (reduces available balance)
+    total_contributions = 0.0
+    for goal in goals:
+        total_contributions += sum(
+            c.amount for c in GoalContribution.query.filter_by(goal_id=goal.id).all()
+        )
+
+    # Balance = what the student actually has free after expenses AND goal commitments
+    balance = savings - total_contributions
 
     # ── Core rates ────────────────────────────────────────────────────────────
     savings_rate = (savings / total_income * 100)        if total_income else 0.01
@@ -79,9 +97,9 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     emergency_buffer_present = _check_emergency_buffer(total_income, total_expenses)
     emergency_buffer_amount  = _calculate_emergency_buffer_amount(total_income, total_expenses)
 
-    # ── Goal progress ─────────────────────────────────────────────────────────
-    goal_progress = _calculate_goal_progress(primary_goal, savings)
-    goal_health   = _evaluate_goal_health(primary_goal, savings)
+    # ── Goal progress — uses contributions, not net savings ───────────────────
+    goal_progress = _calculate_goal_progress(primary_goal, primary_goal_contributed)
+    goal_health   = _evaluate_goal_health(primary_goal, primary_goal_contributed)
 
     # ── Salary burn rate ──────────────────────────────────────────────────────
     day_of_month     = now.day if (month == now.month and year == now.year) else 30
@@ -142,6 +160,8 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
 
         # ── Extra fields returned to Flutter alongside engine results ──────────
         "savings":                   round(savings, 2),
+        "balance":                   round(balance, 2),
+        "total_contributions":       round(total_contributions, 2),
         "daily_budget":              round(daily_budget, 2),
         "goal_health":               goal_health,
         "category_variance":         category_variance,
@@ -200,15 +220,15 @@ def _calculate_emergency_buffer_amount(income: float, expenses: float) -> float:
     return ((income - expenses) / income) if income else 0.0
 
 
-def _calculate_goal_progress(goal: SavingsGoal, savings: float) -> float:
-    """Percentage of savings goal achieved."""
+def _calculate_goal_progress(goal: SavingsGoal, contributed: float) -> float:
+    """Percentage of savings goal achieved based on contributions."""
     if not goal:
         return 0.0
-    return min((savings / goal.goal_amount) * 100, 150.0)
+    return min((contributed / goal.goal_amount) * 100, 150.0)
 
 
-def _evaluate_goal_health(goal: SavingsGoal, savings: float) -> str:
-    """Human-readable goal tracking status."""
+def _evaluate_goal_health(goal: SavingsGoal, contributed: float) -> str:
+    """Human-readable goal tracking status based on contributions."""
     if not goal:
         return "No savings goal set."
 
@@ -221,19 +241,19 @@ def _evaluate_goal_health(goal: SavingsGoal, savings: float) -> str:
 
     expected_by_now = (goal.goal_amount / total_days) * days_passed
 
-    if savings >= goal.goal_amount:
+    if contributed >= goal.goal_amount:
         return "Goal already achieved! Congratulations!"
 
     if expected_by_now <= 0:
-        if savings > 0:
-            pct = (savings / goal.goal_amount) * 100
+        if contributed > 0:
+            pct = (contributed / goal.goal_amount) * 100
             return f"Great start! You've already saved {pct:.1f}% of your goal."
         return "Goal period has just started. Start saving to meet your target!"
 
-    if savings >= expected_by_now:
+    if contributed >= expected_by_now:
         return "On track to meet your goal. Keep it up!"
 
-    gap = expected_by_now - savings
+    gap = expected_by_now - contributed
     if gap <= 0.10 * goal.goal_amount:
         return "Slightly behind your goal. Minor adjustment needed."
     elif gap <= 0.30 * goal.goal_amount:
@@ -279,8 +299,8 @@ def _detect_luxury_expense_growth(prev_luxury: float, current_luxury: float) -> 
 
 def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
     """
-    Count consecutive months where the student's savings met or
-    exceeded the expected goal progress for that point in time.
+    Count consecutive months where contributions met or exceeded
+    the expected goal progress for that point in time.
     Looks back up to 12 months.
     """
     if not goal:
@@ -289,7 +309,7 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
     streak = 0
     now    = datetime.utcnow()
 
-    for i in range(1, 13):  # check up to 12 previous months
+    for i in range(1, 13):
         m = now.month - i
         y = now.year
         while m <= 0:
@@ -302,33 +322,30 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
             extract("year",  Income.date_added) == y,
         ).all()
 
-        exp = Expense.query.filter(
-            Expense.user_id == user_id,
-            extract("month", Expense.date_added) == m,
-            extract("year",  Expense.date_added) == y,
-            Expense.expense_type != "one-time",
-        ).all()
-
         if not inc:
-            break  # no data for this month, stop counting
+            break
 
-        period_income   = sum(r.amount for r in inc)
-        period_expenses = sum(e.amount for e in exp)
-        period_savings  = period_income - period_expenses
+        # Contributions up to end of that month
+        period_end = datetime(y, m, 28, 23, 59, 59)
+        contributed_so_far = sum(
+            c.amount for c in GoalContribution.query.filter(
+                GoalContribution.goal_id == goal.id,
+                GoalContribution.date_added <= period_end,
+            ).all()
+        )
 
-        # Check if savings met the expected pace toward goal
-        period_date    = date(y, m, 1)
-        total_days     = (goal.due_date - goal.date_set.date()).days
-        days_passed    = (period_date - goal.date_set.date()).days
+        period_date = date(y, m, 28)
+        total_days  = (goal.due_date - goal.date_set.date()).days
+        days_passed = (period_date - goal.date_set.date()).days
 
         if total_days <= 0 or days_passed <= 0:
             break
 
         expected = (goal.goal_amount / total_days) * days_passed
-        if period_savings >= expected:
+        if contributed_so_far >= expected:
             streak += 1
         else:
-            break  # streak broken
+            break
 
     return streak
 
