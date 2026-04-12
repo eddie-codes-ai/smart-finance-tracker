@@ -1,4 +1,6 @@
 // lib/providers/auth_provider.dart
+// UPDATED: Added updateProfile() method for the Profile/Account Settings screen.
+
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:frontend/data/local/secure_storage.dart';
@@ -165,6 +167,49 @@ class AuthProvider extends ChangeNotifier {
       _setLoading(false);
       if (response['status'] == 'success') return true;
       _error = response['message'] ?? 'Password reset failed.';
+      return false;
+    } catch (e) {
+      _error = 'Network error: $e';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPDATE PROFILE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Update username, email, and/or password.
+  /// On success, updates the in-memory [_user] with the new values returned
+  /// from the backend so the UI reflects changes immediately without re-login.
+  ///
+  /// [currentPassword] is required when [newPassword] is provided.
+  /// Returns true on success, false on failure (error message set in [_error]).
+  Future<bool> updateProfile({
+    String? username,
+    String? email,
+    String? newPassword,
+    String? currentPassword,
+  }) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final response = await ApiClient.updateProfile(
+        username:        username,
+        email:           email,
+        newPassword:     newPassword,
+        currentPassword: currentPassword,
+      );
+      if (response['status'] == 'success') {
+        // Refresh in-memory user from the updated backend response
+        _user = UserModel.fromJson(response['user']);
+        // Keep secure storage username in sync
+        await SecureStorage.saveUsername(_user!.username);
+        _setLoading(false);
+        return true;
+      }
+      _error = response['message'] ?? 'Update failed.';
+      _setLoading(false);
       return false;
     } catch (e) {
       _error = 'Network error: $e';

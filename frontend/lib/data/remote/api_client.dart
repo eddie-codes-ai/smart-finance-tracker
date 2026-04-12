@@ -1,6 +1,7 @@
 // lib/data/remote/api_client.dart
 // All methods are STATIC — providers call them as ApiClient.methodName()
 // ApiException is defined here for use in providers.
+// UPDATED: Added updateProfile() for PUT /api/auth/profile
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -80,6 +81,29 @@ class ApiClient {
       Uri.parse('${AppConstants.baseUrl}/auth/reset-password'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'code': code, 'new_password': newPassword}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Update profile fields. All parameters are optional.
+  /// Supply only the fields the user wants to change.
+  /// [currentPassword] is required when [newPassword] is provided.
+  static Future<Map<String, dynamic>> updateProfile({
+    String? username,
+    String? email,
+    String? newPassword,
+    String? currentPassword,
+  }) async {
+    final body = <String, dynamic>{};
+    if (username        != null && username.isNotEmpty)        body['username']         = username;
+    if (email           != null && email.isNotEmpty)           body['email']            = email;
+    if (newPassword     != null && newPassword.isNotEmpty)     body['new_password']     = newPassword;
+    if (currentPassword != null && currentPassword.isNotEmpty) body['current_password'] = currentPassword;
+
+    final response = await http.put(
+      Uri.parse('${AppConstants.baseUrl}/auth/profile'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
     );
     return jsonDecode(response.body);
   }
@@ -238,8 +262,6 @@ class ApiClient {
   // GUARDIAN
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Named parameter to match guardian_provider.dart call:
-  // ApiClient.linkGuardian(phoneNumber: phoneNumber)
   static Future<Map<String, dynamic>> linkGuardian({required String phoneNumber}) async {
     final response = await http.post(
       Uri.parse('${AppConstants.baseUrl}/guardian/link'),

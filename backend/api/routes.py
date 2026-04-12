@@ -119,7 +119,7 @@ def forgot_password():
     if user:
         code                    = f"{random.randint(0, 999999):06d}"
         user.reset_token        = code
-        user.reset_token_expiry = datetime.utcnow() + timedelta(minutes=15)
+        user.reset_token_expiry = datetime.utcnow() + timedelta(minutes=60)
         db.session.commit()
         send_reset_email(email, user.username, code)
     return success({"message": "If that email is registered, a reset code has been sent. Check your inbox and spam folder."})
@@ -147,6 +147,69 @@ def reset_password_endpoint():
     user.reset_token_expiry = None
     db.session.commit()
     return success({"message": "Password reset successfully. You can now log in with your new password."})
+
+
+@api.route("/auth/profile", methods=["PUT"])
+@jwt_required()
+def update_profile():
+    """
+    PUT /api/auth/profile
+    JWT required.
+    Body (all fields optional — only provided fields are updated):
+        {
+            "username":     "new_username",
+            "email":        "new@email.com",
+            "new_password": "newpassword123",
+            "current_password": "currentpassword"   ← required when changing password
+        }
+
+    Rules:
+    - Username must be unique across all users.
+    - Email must be unique across all users.
+    - To change password, current_password must be provided and correct.
+    - At least one field must be provided.
+    """
+    user_id  = int(get_jwt_identity())
+    user     = User.query.get(user_id)
+    data     = request.get_json() or {}
+
+    new_username     = data.get("username", "").strip() or None
+    new_email        = data.get("email", "").strip().lower() or None
+    new_password     = data.get("new_password", "") or None
+    current_password = data.get("current_password", "") or None
+
+    # At least one field must be provided
+    if not any([new_username, new_email, new_password]):
+        return error("No changes provided. Supply at least one of: username, email, new_password.")
+
+    # ── Username change ───────────────────────────────────────────────────────
+    if new_username:
+        if new_username == user.username:
+            return error("New username is the same as your current username.")
+        if User.query.filter(User.username == new_username, User.id != user_id).first():
+            return error("That username is already taken.", 409)
+        user.username = new_username
+
+    # ── Email change ──────────────────────────────────────────────────────────
+    if new_email:
+        if new_email == user.email:
+            return error("New email is the same as your current email.")
+        if User.query.filter(User.email == new_email, User.id != user_id).first():
+            return error("That email is already registered.", 409)
+        user.email = new_email
+
+    # ── Password change ───────────────────────────────────────────────────────
+    if new_password:
+        if not current_password:
+            return error("Current password is required to set a new password.")
+        if not user.check_password(current_password):
+            return error("Current password is incorrect.", 401)
+        if len(new_password) < 6:
+            return error("New password must be at least 6 characters long.")
+        user.set_password(new_password)
+
+    db.session.commit()
+    return success({"message": "Profile updated successfully.", "user": user.to_dict()})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -440,7 +503,6 @@ def guardian_report():
 @api.route("/helb/plan", methods=["GET"])
 @jwt_required()
 def get_helb_plan():
-    """GET /api/helb/plan — fetch the student's current semester plan."""
     user_id = int(get_jwt_identity())
     plan    = HelbPlan.query.filter_by(user_id=user_id).first()
     return success({"plan": plan.to_dict() if plan else None})
@@ -449,7 +511,6 @@ def get_helb_plan():
 @api.route("/helb/plan", methods=["POST"])
 @jwt_required()
 def save_helb_plan():
-    """POST /api/helb/plan — create or update semester plan (upsert)."""
     user_id       = int(get_jwt_identity())
     data          = request.get_json()
     semester_name = data.get("semester_name", "").strip()
@@ -490,7 +551,6 @@ def save_helb_plan():
 @api.route("/helb/plan", methods=["DELETE"])
 @jwt_required()
 def delete_helb_plan():
-    """DELETE /api/helb/plan — permanently delete the student's semester plan."""
     user_id = int(get_jwt_identity())
     plan    = HelbPlan.query.filter_by(user_id=user_id).first()
     if not plan:
