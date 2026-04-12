@@ -10,25 +10,26 @@ def run_analysis(payload: dict) -> dict:
     Accepts a processed payload (already computed by analysis_service),
     declares the FinancialProfile fact, runs all rules, finalizes,
     and returns a clean results dict for the API layer to return to Flutter.
-
-    Expected payload keys:
-        income                  (float)
-        expenses                (float)
-        savings_rate            (float)
-        expense_rate            (float)
-        overspent_days          (int)
-        luxury_spending_ratio   (float)
-        emergency_buffer_present(bool)
-        emergency_buffer_amount (float)
-        goal_progress           (float)
-        goal_set                (bool)
-        day_of_month            (int)
-        spending_trend          (str)
-        salary_burn_rate        (float)
-        luxury_expense_growth   (str)
-        overspending_streak     (int)
-        goal_achievement_streak (int)
     """
+
+    # ── No-data guard ────────────────────────────────────────────────────────
+    # If the student has not logged any income or expenses yet, skip the engine
+    # entirely and return a neutral placeholder result. Without this check,
+    # the engine runs on near-zero fallback values and produces a misleading
+    # score (e.g. 60) for a brand new account with no transactions.
+    income   = payload.get("income",   0)
+    expenses = payload.get("expenses", 0)
+
+    if income <= 0.01 and expenses <= 0.01:
+        return {
+            "score":      0,
+            "category":   "No Data",
+            "persona":    "No transactions recorded yet",
+            "projection": "Add income and expenses to get your financial projection",
+            "advice":     [],
+            "is_urgent":  False,
+        }
+    # ─────────────────────────────────────────────────────────────────────────
 
     advisor = FinancialAdvisor()
     advisor.reset()
@@ -53,17 +54,15 @@ def run_analysis(payload: dict) -> dict:
     ))
 
     advisor.run()
-
-    # Pass expense_rate so finalize() can set the spending projection string.
     advisor.finalize(expense_rate=_safe_float(payload.get("expense_rate")))
 
     return {
-        "score":        advisor.score,
-        "category":     advisor.category,
-        "persona":      advisor.persona,
-        "projection":   advisor.projection,
-        "advice":       advisor.advice,
-        "is_urgent":    _is_urgent(advisor.score, payload),
+        "score":      advisor.score,
+        "category":   advisor.category,
+        "persona":    advisor.persona,
+        "projection": advisor.projection,
+        "advice":     advisor.advice,
+        "is_urgent":  _is_urgent(advisor.score, payload),
     }
 
 

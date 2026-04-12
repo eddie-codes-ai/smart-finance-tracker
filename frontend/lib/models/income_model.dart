@@ -1,12 +1,9 @@
 // lib/models/income_model.dart
-// Represents a single income record.
-// Fields match the 'incomes' table to_dict() in models.py.
-
 class IncomeModel {
   final int id;
   final int userId;
   final double amount;
-  final String incomeType; // monthly | daily | helb | parental | gig | other
+  final String incomeType;
   final String description;
   final String dateAdded;
 
@@ -21,24 +18,21 @@ class IncomeModel {
 
   factory IncomeModel.fromJson(Map<String, dynamic> json) {
     return IncomeModel(
-      id: json['id'],
-      userId: json['user_id'],
-      // amount comes as int or double from SQLite - always cast to double
-      amount: (json['amount'] as num).toDouble(),
-      incomeType: json['income_type'],
-      description: json['description'] ?? '',
-      dateAdded: json['date_added'],
+      id:          (json['id'] as num).toInt(),
+      userId:      (json['user_id'] as num?)?.toInt() ?? 0,  // FIX: user_id not always returned by backend
+      amount:      (json['amount'] as num).toDouble(),
+      incomeType:  json['income_type'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      dateAdded:   json['date_added'] as String? ?? '',
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'amount': amount,
-      'income_type': incomeType,
-      'description': description,
-      'date_added': dateAdded,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'id':          id,
+    'user_id':     userId,
+    'amount':      amount,
+    'income_type': incomeType,
+    'description': description,
+    'date_added':  dateAdded,
+  };
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    android/app/src/main/res/values/strings.xml
+
+    Replace YOUR_WEB_CLIENT_ID below with the Web Client ID from
+    Google Cloud Console → APIs & Services → Credentials.
+
+    IMPORTANT: This must be the WEB Client ID, NOT the Android Client ID.
+    The Web Client ID ends with .apps.googleusercontent.com
+-->
+<resources>
+    <string name="default_web_client_id">866645622012-5km05daf6mniv6f5i5e1p5tq2be3m204.apps.googleusercontent.com</string>
+</resources>

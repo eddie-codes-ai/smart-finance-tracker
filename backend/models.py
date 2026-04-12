@@ -1,7 +1,7 @@
+import json
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-import json
 
 db = SQLAlchemy()
 
@@ -20,15 +20,17 @@ TRIGGER_CHOICES     = ('auto', 'manual')
 # ─── User ─────────────────────────────────────────────────────────────────────
 
 class User(db.Model):
-    """Student account. Central FK for all other tables."""
     __tablename__ = "users"
 
-    id            = db.Column(db.Integer, primary_key=True)
-    username      = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
-    created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    id                 = db.Column(db.Integer,     primary_key=True)
+    username           = db.Column(db.String(80),  unique=True,  nullable=False)
+    password_hash      = db.Column(db.String(256),               nullable=False)
+    email              = db.Column(db.String(120),  unique=True,  nullable=True)
+    google_id          = db.Column(db.String(100),  unique=True,  nullable=True)
+    reset_token        = db.Column(db.String(10),                 nullable=True)
+    reset_token_expiry = db.Column(db.DateTime,                   nullable=True)
+    created_at         = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    # Relationships
     incomes          = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
     expenses         = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
     budgets          = db.relationship("Budget",         backref="owner", lazy=True, cascade="all, delete-orphan")
@@ -47,6 +49,7 @@ class User(db.Model):
         return {
             "id":         self.id,
             "username":   self.username,
+            "email":      self.email,
             "created_at": self.created_at.isoformat(),
         }
 
@@ -217,14 +220,9 @@ class GuardianReport(db.Model):
 
 class HelbPlan(db.Model):
     """
-    HELB Semester Budget Plan — one per student.
-    Stored in backend DB so it is fully user-specific via JWT.
-    allocations is a JSON string e.g. '{"Food": 5000.0, "Transport": 3000.0}'
-    deserialized to dict in to_dict() for the Flutter client.
-
-    FIX: removed onupdate=datetime.utcnow — not reliably supported by
-    PostgreSQL via SQLAlchemy. updated_at is now set explicitly in the
-    upsert route instead.
+    Stores the student's HELB semester budget plan.
+    One plan per student (uselist=False). Saving a new plan overwrites the old one.
+    Allocations are stored as JSON text — a dict of {category: amount}.
     """
     __tablename__ = "helb_plans"
 
@@ -234,19 +232,20 @@ class HelbPlan(db.Model):
     helb_amount   = db.Column(db.Float, nullable=False)
     start_date    = db.Column(db.Date, nullable=False)
     end_date      = db.Column(db.Date, nullable=False)
-    allocations   = db.Column(db.Text, nullable=False, default="{}")
+    allocations   = db.Column(db.Text, nullable=False, default="{}")  # JSON string
     created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    # FIX: no onupdate — set explicitly in the route on every update
-    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     def get_allocations(self) -> dict:
+        """Deserialize allocations from JSON string to dict."""
         try:
             return json.loads(self.allocations)
         except (json.JSONDecodeError, TypeError):
             return {}
 
-    def set_allocations(self, allocations_dict: dict):
-        self.allocations = json.dumps(allocations_dict)
+    def set_allocations(self, allocations: dict):
+        """Serialize allocations dict to JSON string."""
+        self.allocations = json.dumps(allocations)
 
     def to_dict(self) -> dict:
         return {
