@@ -1,7 +1,8 @@
 // lib/ui/transactions/add_income_screen.dart
 // Form screen to log a new income record.
 // Fields: amount, income_type, description.
-// On success navigates back and shows a snackbar confirmation.
+// UPDATED: After a successful save, refreshes income + analysis providers
+// so the dashboard updates automatically when the user navigates back.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,8 +20,8 @@ class AddIncomeScreen extends StatefulWidget {
 }
 
 class _AddIncomeScreenState extends State<AddIncomeScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController();
+  final _formKey             = GlobalKey<FormState>();
+  final _amountController    = TextEditingController();
   final _descriptionController = TextEditingController();
   String _selectedType = 'monthly';
 
@@ -35,18 +36,27 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final provider = context.read<IncomeProvider>();
-    final success = await provider.addIncome(
-      amount: double.parse(_amountController.text.trim()),
-      incomeType: _selectedType,
+    final incomeProvider   = context.read<IncomeProvider>();
+    final analysisProvider = context.read<AnalysisProvider>();
+
+    final success = await incomeProvider.addIncome(
+      amount:      double.parse(_amountController.text.trim()),
+      incomeType:  _selectedType,
       description: _descriptionController.text.trim(),
     );
 
     if (!mounted) return;
 
     if (success) {
-      // Invalidate analysis so dashboard refreshes score on next visit.
-      context.read<AnalysisProvider>().clear();
+      // Refresh income list and re-run analysis so dashboard is up to date
+      // the moment the user navigates back — no manual pull-to-refresh needed.
+      final now = DateTime.now();
+      await Future.wait([
+        incomeProvider.fetchIncome(month: now.month, year: now.year),
+        analysisProvider.analyze(month: now.month, year: now.year),
+      ]);
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -59,7 +69,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.errorMessage ?? 'Failed to add income.'),
+          content: Text(incomeProvider.errorMessage ?? 'Failed to add income.'),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -93,7 +103,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d+\.?\d{0,2}')),
                 ],
                 decoration: const InputDecoration(
                   hintText: '0.00',
@@ -194,8 +205,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                               strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.check),
-                  label:
-                      Text(isLoading ? 'Saving...' : 'Save Income Record'),
+                  label: Text(
+                      isLoading ? 'Saving...' : 'Save Income Record'),
                 ),
               ),
             ],
@@ -207,18 +218,12 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
   String _typeLabel(String type) {
     switch (type) {
-      case 'monthly':
-        return 'Monthly';
-      case 'daily':
-        return 'Daily';
-      case 'helb':
-        return 'HELB';
-      case 'parental':
-        return 'Parental';
-      case 'gig':
-        return 'Gig';
-      default:
-        return 'Other';
+      case 'monthly':  return 'Monthly';
+      case 'daily':    return 'Daily';
+      case 'helb':     return 'HELB';
+      case 'parental': return 'Parental';
+      case 'gig':      return 'Gig';
+      default:         return 'Other';
     }
   }
 }

@@ -5,6 +5,9 @@
 // Strategy: delete the old record + create a new one with updated values.
 // This avoids needing a PUT/PATCH backend endpoint.
 //
+// UPDATED: After a successful save, refreshes the relevant provider and
+// re-runs analysis so the dashboard updates automatically on return.
+//
 // Editable fields:
 //   Expense  — amount, description, category
 //   Income   — amount, description, income type
@@ -15,11 +18,11 @@ import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/income_provider.dart';
+import '../../providers/analysis_provider.dart';
 import '../../models/expense_model.dart';
 import '../../models/income_model.dart';
 
 class EditTransactionScreen extends StatefulWidget {
-  // Pass either an expense or income — never both.
   final ExpenseModel? expense;
   final IncomeModel?  income;
 
@@ -52,16 +55,16 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     super.initState();
     if (_isExpense) {
       final e = widget.expense!;
-      _amountController    = TextEditingController(text: e.amount.toStringAsFixed(2));
-      _descController      = TextEditingController(text: e.description);
-      _selectedCategory    = e.category;
-      _selectedIncomeType  = 'other';
+      _amountController   = TextEditingController(text: e.amount.toStringAsFixed(2));
+      _descController     = TextEditingController(text: e.description);
+      _selectedCategory   = e.category;
+      _selectedIncomeType = 'other';
     } else {
       final i = widget.income!;
-      _amountController    = TextEditingController(text: i.amount.toStringAsFixed(2));
-      _descController      = TextEditingController(text: i.description);
-      _selectedCategory    = 'Other';
-      _selectedIncomeType  = i.incomeType;
+      _amountController   = TextEditingController(text: i.amount.toStringAsFixed(2));
+      _descController     = TextEditingController(text: i.description);
+      _selectedCategory   = 'Other';
+      _selectedIncomeType = i.incomeType;
     }
   }
 
@@ -79,30 +82,49 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     try {
       final newAmount = double.parse(_amountController.text.trim());
       final newDesc   = _descController.text.trim();
+      final now       = DateTime.now();
 
       if (_isExpense) {
-        final e = widget.expense!;
-        // Delete old record
-        await context.read<ExpenseProvider>().deleteExpense(e.id);
-        // Create updated record
-        await context.read<ExpenseProvider>().addExpense(
+        final e                  = widget.expense!;
+        final expenseProvider    = context.read<ExpenseProvider>();
+        final analysisProvider   = context.read<AnalysisProvider>();
+
+        await expenseProvider.deleteExpense(e.id);
+        await expenseProvider.addExpense(
           amount:      newAmount,
           category:    _selectedCategory,
           description: newDesc,
           expenseType: e.expenseType,
         );
+
+        // Refresh expense list and re-run analysis so dashboard is
+        // up to date the moment the user navigates back.
+        await Future.wait([
+          expenseProvider.fetchExpenses(month: now.month, year: now.year),
+          analysisProvider.analyze(month: now.month, year: now.year),
+        ]);
       } else {
-        final i = widget.income!;
-        await context.read<IncomeProvider>().deleteIncome(i.id);
-        await context.read<IncomeProvider>().addIncome(
+        final i                = widget.income!;
+        final incomeProvider   = context.read<IncomeProvider>();
+        final analysisProvider = context.read<AnalysisProvider>();
+
+        await incomeProvider.deleteIncome(i.id);
+        await incomeProvider.addIncome(
           amount:      newAmount,
           incomeType:  _selectedIncomeType,
           description: newDesc,
         );
+
+        // Refresh income list and re-run analysis so dashboard is
+        // up to date the moment the user navigates back.
+        await Future.wait([
+          incomeProvider.fetchIncome(month: now.month, year: now.year),
+          analysisProvider.analyze(month: now.month, year: now.year),
+        ]);
       }
 
       if (!mounted) return;
-      Navigator.pop(context, true); // true = was edited
+      Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_isExpense
@@ -235,8 +257,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                               ? []
                               : [
                                   BoxShadow(
-                                    color:
-                                        Colors.black.withOpacity(0.04),
+                                    color: Colors.black.withOpacity(0.04),
                                     blurRadius: 4,
                                     offset: const Offset(0, 1),
                                   )

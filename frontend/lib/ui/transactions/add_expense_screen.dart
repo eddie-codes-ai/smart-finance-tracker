@@ -1,7 +1,8 @@
 // lib/ui/transactions/add_expense_screen.dart
 // Form screen to log a new expense record.
 // Fields: amount, category, expense_type, recurrence_interval, description.
-// Shows recurrence interval picker only when expense_type is 'recurring'.
+// UPDATED: After a successful save, refreshes expense + analysis providers
+// so the dashboard updates automatically when the user navigates back.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,32 +21,28 @@ class AddExpenseScreen extends StatefulWidget {
 }
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController();
+  final _formKey               = GlobalKey<FormState>();
+  final _amountController      = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  String _selectedCategory = 'Food';
-  String _selectedExpenseType = 'daily';
+  String  _selectedCategory    = 'Food';
+  String  _selectedExpenseType = 'daily';
   String? _selectedRecurrence;
 
-  // Category icons matching TransactionsScreen
   static const Map<String, IconData> _categoryIcons = {
-    'Food': Icons.restaurant_outlined,
-    'Transport': Icons.directions_bus_outlined,
+    'Food':          Icons.restaurant_outlined,
+    'Transport':     Icons.directions_bus_outlined,
     'Entertainment': Icons.movie_outlined,
-    'Shopping': Icons.shopping_bag_outlined,
-    'Health': Icons.local_hospital_outlined,
-    'Education': Icons.school_outlined,
-    'Utilities': Icons.bolt_outlined,
-    'Rent': Icons.home_outlined,
-    'Other': Icons.category_outlined,
+    'Shopping':      Icons.shopping_bag_outlined,
+    'Health':        Icons.local_hospital_outlined,
+    'Education':     Icons.school_outlined,
+    'Utilities':     Icons.bolt_outlined,
+    'Rent':          Icons.home_outlined,
+    'Other':         Icons.category_outlined,
   };
 
   static const List<String> _recurrenceOptions = [
-    'daily',
-    'weekly',
-    'biweekly',
-    'monthly',
+    'daily', 'weekly', 'biweekly', 'monthly',
   ];
 
   @override
@@ -59,30 +56,37 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    // Recurrence interval only sent if expense_type is recurring.
-    final recurrence =
-        _selectedExpenseType == 'recurring' ? _selectedRecurrence : null;
+    final recurrence = _selectedExpenseType == 'recurring'
+        ? _selectedRecurrence
+        : null;
 
-    // Look up the budget limit for the selected category.
-    // Returns null if the student has not set a budget for this category —
-    // in that case no notification will fire (nothing to compare against).
     final double? budgetLimit =
         context.read<BudgetProvider>().limitFor(_selectedCategory);
 
-    final provider = context.read<ExpenseProvider>();
-    final success = await provider.addExpense(
-      amount: double.parse(_amountController.text.trim()),
-      category: _selectedCategory,
-      description: _descriptionController.text.trim(),
-      expenseType: _selectedExpenseType,
+    final expenseProvider  = context.read<ExpenseProvider>();
+    final analysisProvider = context.read<AnalysisProvider>();
+
+    final success = await expenseProvider.addExpense(
+      amount:             double.parse(_amountController.text.trim()),
+      category:           _selectedCategory,
+      description:        _descriptionController.text.trim(),
+      expenseType:        _selectedExpenseType,
       recurrenceInterval: recurrence,
-      budgetLimit: budgetLimit, // ← triggers notification check in provider
+      budgetLimit:        budgetLimit,
     );
 
     if (!mounted) return;
 
     if (success) {
-      context.read<AnalysisProvider>().clear();
+      // Refresh expense list and re-run analysis so dashboard is up to date
+      // the moment the user navigates back — no manual pull-to-refresh needed.
+      final now = DateTime.now();
+      await Future.wait([
+        expenseProvider.fetchExpenses(month: now.month, year: now.year),
+        analysisProvider.analyze(month: now.month, year: now.year),
+      ]);
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -95,7 +99,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.errorMessage ?? 'Failed to add expense.'),
+          content: Text(
+              expenseProvider.errorMessage ?? 'Failed to add expense.'),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -352,31 +357,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   String _expenseTypeLabel(String type) {
     switch (type) {
-      case 'daily':
-        return 'Daily';
-      case 'monthly':
-        return 'Monthly';
-      case 'one-time':
-        return 'One-Time';
-      case 'recurring':
-        return 'Recurring';
-      default:
-        return type;
+      case 'daily':     return 'Daily';
+      case 'monthly':   return 'Monthly';
+      case 'one-time':  return 'One-Time';
+      case 'recurring': return 'Recurring';
+      default:          return type;
     }
   }
 
   String _recurrenceLabel(String r) {
     switch (r) {
-      case 'daily':
-        return 'Every Day';
-      case 'weekly':
-        return 'Every Week';
-      case 'biweekly':
-        return 'Every 2 Weeks';
-      case 'monthly':
-        return 'Every Month';
-      default:
-        return r;
+      case 'daily':    return 'Every Day';
+      case 'weekly':   return 'Every Week';
+      case 'biweekly': return 'Every 2 Weeks';
+      case 'monthly':  return 'Every Month';
+      default:         return r;
     }
   }
 }
