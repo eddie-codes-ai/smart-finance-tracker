@@ -1,6 +1,7 @@
 // lib/ui/dashboard/dashboard_screen.dart
 // Main dashboard shown after login.
-// Improved empty states guide new users through setup step by step.
+// Summary row now shows Balance (income - expenses - goal contributions)
+// instead of Savings (income - expenses).
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +64,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final noGoalSet      = goalHealth == 'No savings goal set.';
     final showGoalBanner = analysis.hasResult;
 
+    // Balance = income - expenses - total contributions (truly free money).
+    // Falls back to income - expenses if analysis not yet loaded.
+    final double balance = analysis.hasResult
+        ? analysis.result!.balance
+        : income.total - expense.total;
+
     return Material(
       color: AppTheme.background,
       child: RefreshIndicator(
@@ -91,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _buildSummaryRow(
                 income:   income.total,
                 expenses: expense.total,
-                savings:  income.total - expense.total,
+                balance:  balance,
               ),
 
               const SizedBox(height: 20),
@@ -235,7 +242,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ─── Score Card (empty state) ─────────────────────────────────────────────
   Widget _buildScoreCardEmpty() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -267,7 +273,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Placeholder score display
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -315,7 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ─── Onboarding Checklist (shown only when account is brand new) ──────────
+  // ─── Onboarding Checklist ─────────────────────────────────────────────────
   Widget _buildOnboardingChecklist() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -353,8 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Divider(height: 1),
           const SizedBox(height: 12),
           _onboardingStep(
-            step: '1',
-            icon: Icons.account_balance_wallet_outlined,
+            step: '1', icon: Icons.account_balance_wallet_outlined,
             title: 'Add your income',
             subtitle: 'Log your HELB, stipend, or salary for this month',
             onTap: () => Navigator.pushNamed(context, AppRoutes.addIncome),
@@ -362,8 +366,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 10),
           _onboardingStep(
-            step: '2',
-            icon: Icons.receipt_long_outlined,
+            step: '2', icon: Icons.receipt_long_outlined,
             title: 'Log an expense',
             subtitle: 'Record what you spend — food, transport, rent, etc.',
             onTap: () => Navigator.pushNamed(context, AppRoutes.addExpense),
@@ -371,8 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 10),
           _onboardingStep(
-            step: '3',
-            icon: Icons.pie_chart_outline,
+            step: '3', icon: Icons.pie_chart_outline,
             title: 'Set a budget',
             subtitle: 'Define spending limits per category for the month',
             onTap: () => Navigator.pushNamed(context, AppRoutes.addBudget),
@@ -380,15 +382,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 10),
           _onboardingStep(
-            step: '4',
-            icon: Icons.flag_outlined,
+            step: '4', icon: Icons.flag_outlined,
             title: 'Create a savings goal',
             subtitle: 'Set a target — laptop, rent deposit, emergency fund',
             onTap: () => Navigator.pushNamed(context, AppRoutes.addGoal),
             isDone: false,
           ),
           const SizedBox(height: 14),
-          // Quick tip box
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -419,12 +419,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _onboardingStep({
-    required String   step,
-    required IconData icon,
-    required String   title,
-    required String   subtitle,
-    required VoidCallback onTap,
-    required bool     isDone,
+    required String step, required IconData icon,
+    required String title, required String subtitle,
+    required VoidCallback onTap, required bool isDone,
   }) {
     return InkWell(
       onTap: onTap,
@@ -438,7 +435,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         child: Row(
           children: [
-            // Step number / done indicator
             Container(
               width: 28, height: 28,
               decoration: BoxDecoration(
@@ -453,10 +449,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            // Icon
             Icon(icon, size: 18, color: isDone ? AppTheme.primary : AppTheme.textSecondary),
             const SizedBox(width: 10),
-            // Text
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,40 +471,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ─── Summary Row ──────────────────────────────────────────────────────────
-  Widget _buildSummaryRow({required double income, required double expenses, required double savings}) {
+  // ─── Summary Row — now shows Balance instead of Savings ──────────────────
+  Widget _buildSummaryRow({
+    required double income,
+    required double expenses,
+    required double balance,
+  }) {
     final fmt = NumberFormat('#,##0', 'en_US');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           Expanded(child: _summaryCard(
-            label: 'Income', amount: '${AppConstants.currency} ${fmt.format(income)}',
-            icon: Icons.arrow_downward, color: AppTheme.success, isEmpty: income == 0)),
+            label: 'Income',
+            amount: '${AppConstants.currency} ${fmt.format(income)}',
+            icon: Icons.arrow_downward,
+            color: AppTheme.success,
+            isEmpty: income == 0,
+          )),
           const SizedBox(width: 10),
           Expanded(child: _summaryCard(
-            label: 'Expenses', amount: '${AppConstants.currency} ${fmt.format(expenses)}',
-            icon: Icons.arrow_upward, color: AppTheme.error, isEmpty: expenses == 0)),
+            label: 'Expenses',
+            amount: '${AppConstants.currency} ${fmt.format(expenses)}',
+            icon: Icons.arrow_upward,
+            color: AppTheme.error,
+            isEmpty: expenses == 0,
+          )),
           const SizedBox(width: 10),
           Expanded(child: _summaryCard(
-            label: 'Savings', amount: '${AppConstants.currency} ${fmt.format(savings)}',
-            icon: Icons.savings_outlined,
-            color: savings >= 0 ? AppTheme.info : AppTheme.warning, isEmpty: income == 0 && expenses == 0)),
+            label: 'Balance',
+            amount: '${AppConstants.currency} ${fmt.format(balance)}',
+            icon: Icons.account_balance_wallet_outlined,
+            color: balance >= 0 ? AppTheme.info : AppTheme.warning,
+            isEmpty: income == 0 && expenses == 0,
+          )),
         ],
       ),
     );
   }
 
   Widget _summaryCard({
-    required String label, required String amount,
-    required IconData icon, required Color color, bool isEmpty = false,
+    required String label,
+    required String amount,
+    required IconData icon,
+    required Color color,
+    bool isEmpty = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,7 +544,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ─── Goal Banner ──────────────────────────────────────────────────────────
   Widget _buildGoalBanner(String goalHealth, bool noGoalSet) {
-    final Color  color;
+    final Color color;
     final IconData icon;
     final String message;
 
@@ -541,7 +554,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       message = 'No savings goal set. Tap to set one →';
     } else {
       final isGood = goalHealth.toLowerCase().contains('on track') ||
-          goalHealth.toLowerCase().contains('achieved');
+          goalHealth.toLowerCase().contains('achieved') ||
+          goalHealth.toLowerCase().contains('great start');
       color   = isGood ? AppTheme.success : AppTheme.warning;
       icon    = Icons.flag_outlined;
       message = goalHealth;
@@ -576,7 +590,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+          Text(title, style: const TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
           if (onSeeAll != null)
             TextButton(onPressed: onSeeAll, child: const Text('See All')),
         ],
@@ -622,11 +637,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: AppTheme.primary.withOpacity(0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.receipt_long_outlined, size: 32, color: AppTheme.primary),
+                child: const Icon(Icons.receipt_long_outlined,
+                    size: 32, color: AppTheme.primary),
               ),
               const SizedBox(height: 14),
               const Text('No transactions yet',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimary)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimary)),
               const SizedBox(height: 6),
               const Text('Start logging your income and expenses\nto track your financial health.',
                   textAlign: TextAlign.center,
@@ -675,7 +692,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(
+                color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
           ),
           child: Row(
             children: [
@@ -694,7 +712,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(t.label,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.textPrimary),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.textPrimary),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(t.isIncome ? dateFmt : '${t.category} · $dateFmt',
                         style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
@@ -737,11 +756,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _TransactionItem {
-  final String   label;
-  final double   amount;
-  final String   date;
-  final bool     isIncome;
-  final String   category;
+  final String label;
+  final double amount;
+  final String date;
+  final bool   isIncome;
+  final String category;
 
   _TransactionItem({
     required this.label, required this.amount,

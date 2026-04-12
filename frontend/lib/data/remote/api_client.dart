@@ -1,7 +1,6 @@
 // lib/data/remote/api_client.dart
 // All methods are STATIC — providers call them as ApiClient.methodName()
 // ApiException is defined here for use in providers.
-// UPDATED: Added updateProfile() for PUT /api/auth/profile
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -85,9 +84,6 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Update profile fields. All parameters are optional.
-  /// Supply only the fields the user wants to change.
-  /// [currentPassword] is required when [newPassword] is provided.
   static Future<Map<String, dynamic>> updateProfile({
     String? username,
     String? email,
@@ -241,6 +237,50 @@ class ApiClient {
       Uri.parse('${AppConstants.baseUrl}/goals/$id'),
       headers: await _authHeaders(),
     );
+    return jsonDecode(response.body);
+  }
+
+  // ─── Goal Contributions ───────────────────────────────────────────────────
+
+  /// Add a contribution toward a specific goal.
+  /// POST /api/goals/<id>/contribute
+  static Future<Map<String, dynamic>> addContribution({
+    required int goalId,
+    required double amount,
+    String? note,
+  }) async {
+    final body = <String, dynamic>{'amount': amount};
+    if (note != null && note.isNotEmpty) body['note'] = note;
+    final response = await http.post(
+      Uri.parse('${AppConstants.baseUrl}/goals/$goalId/contribute'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Get all contributions for a specific goal.
+  /// GET /api/goals/<id>/contributions
+  static Future<Map<String, dynamic>> getContributions(int goalId) async {
+    final response = await http.get(
+      Uri.parse('${AppConstants.baseUrl}/goals/$goalId/contributions'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Get all contributions across all goals for a given month.
+  /// Used by the transactions screen Savings tab.
+  /// GET /api/contributions?month=4&year=2026
+  static Future<Map<String, dynamic>> getAllContributions({int? month, int? year}) async {
+    final now = DateTime.now();
+    final uri = Uri.parse('${AppConstants.baseUrl}/contributions').replace(
+      queryParameters: {
+        'month': (month ?? now.month).toString(),
+        'year':  (year  ?? now.year).toString(),
+      },
+    );
+    final response = await http.get(uri, headers: await _authHeaders());
     return jsonDecode(response.body);
   }
 

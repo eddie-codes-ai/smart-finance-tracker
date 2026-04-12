@@ -20,11 +20,11 @@ class CategoryVariance {
 
   factory CategoryVariance.fromJson(Map<String, dynamic> json) {
     return CategoryVariance(
-      spent: (json['spent'] as num).toDouble(),
-      budget: (json['budget'] as num).toDouble(),
-      variance: (json['variance'] as num).toDouble(),
+      spent:        (json['spent'] as num).toDouble(),
+      budget:       (json['budget'] as num).toDouble(),
+      variance:     (json['variance'] as num).toDouble(),
       usagePercent: (json['usage_percent'] as num).toDouble(),
-      status: json['status'],
+      status:       json['status'] ?? 'under',
     );
   }
 }
@@ -42,10 +42,12 @@ class AnalysisResultModel {
   // ─── Financials ─────────────────────────────────────────────────────────────
   final double income;
   final double expenses;
-  final double savings;         // income - expenses
-  final double savingsRate;     // % of income saved
-  final double expenseRate;     // % of income spent
-  final double dailyBudget;     // monthly_income / 30
+  final double savings;             // income - expenses (gross)
+  final double balance;             // income - expenses - total_contributions (truly free money)
+  final double totalContributions;  // total committed across all goals
+  final double savingsRate;         // % of income saved
+  final double expenseRate;         // % of income spent
+  final double dailyBudget;         // monthly_income / 30
 
   // ─── Spending Behavior ──────────────────────────────────────────────────────
   final int dayOfMonth;
@@ -73,6 +75,8 @@ class AnalysisResultModel {
     required this.income,
     required this.expenses,
     required this.savings,
+    required this.balance,
+    required this.totalContributions,
     required this.savingsRate,
     required this.expenseRate,
     required this.dailyBudget,
@@ -88,8 +92,6 @@ class AnalysisResultModel {
   });
 
   factory AnalysisResultModel.fromJson(Map<String, dynamic> json) {
-    // Parse category_variance map - keys are category names e.g. "Food"
-    // Matches _calculate_category_variance() output in analysis_service.py
     final Map<String, CategoryVariance> variance = {};
     if (json['category_variance'] != null) {
       (json['category_variance'] as Map<String, dynamic>).forEach((key, value) {
@@ -98,26 +100,28 @@ class AnalysisResultModel {
     }
 
     return AnalysisResultModel(
-      period: json['period'],
-      score: (json['score'] as num).toDouble(),
-      category: json['category'],
-      persona: json['persona'],
-      projection: json['projection'],
-      income: (json['income'] as num).toDouble(),
-      expenses: (json['expenses'] as num).toDouble(),
-      savings: (json['savings'] as num).toDouble(),
-      savingsRate: (json['savings_rate'] as num).toDouble(),
-      expenseRate: (json['expense_rate'] as num).toDouble(),
-      dailyBudget: (json['daily_budget'] as num).toDouble(),
-      dayOfMonth: json['day_of_month'] ?? DateTime.now().day,
-      spendingTrend: json['spending_trend'] ?? 'stable',
-      salaryBurnRate: (json['salary_burn_rate'] as num? ?? 0).toDouble(),
+      period:                 json['period']              ?? '',
+      score:                  (json['score'] as num? ?? 0).toDouble(),
+      category:               json['category']            ?? '',
+      persona:                json['persona']             ?? '',
+      projection:             json['projection']          ?? '',
+      income:                 (json['income'] as num? ?? 0).toDouble(),
+      expenses:               (json['expenses'] as num? ?? 0).toDouble(),
+      savings:                (json['savings'] as num? ?? 0).toDouble(),
+      balance:                (json['balance'] as num? ?? 0).toDouble(),
+      totalContributions:     (json['total_contributions'] as num? ?? 0).toDouble(),
+      savingsRate:            (json['savings_rate'] as num? ?? 0).toDouble(),
+      expenseRate:            (json['expense_rate'] as num? ?? 0).toDouble(),
+      dailyBudget:            (json['daily_budget'] as num? ?? 0).toDouble(),
+      dayOfMonth:             json['day_of_month']        ?? DateTime.now().day,
+      spendingTrend:          json['spending_trend']      ?? 'stable',
+      salaryBurnRate:         (json['salary_burn_rate'] as num? ?? 0).toDouble(),
       emergencyBufferPresent: json['emergency_buffer_present'] ?? false,
-      goalProgress: (json['goal_progress'] as num? ?? 0).toDouble(),
-      goalHealth: json['goal_health'] ?? '',
-      advice: List<String>.from(json['advice'] ?? []),
-      isUrgent: json['is_urgent'] ?? false,
-      categoryVariance: variance,
+      goalProgress:           (json['goal_progress'] as num? ?? 0).toDouble(),
+      goalHealth:             json['goal_health']         ?? '',
+      advice:                 List<String>.from(json['advice'] ?? []),
+      isUrgent:               json['is_urgent']           ?? false,
+      categoryVariance:       variance,
     );
   }
 }
