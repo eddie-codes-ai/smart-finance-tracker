@@ -1,8 +1,5 @@
 // lib/ui/insights/insights_screen.dart
-// Displays the full Experta engine analysis result.
-// Shows: score card, projection, persona, daily budget,
-// full advice list, and category variance breakdown.
-// Calls analyze() on first load. Pull-to-refresh reruns analysis.
+// UPDATED: Full dark mode support.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +11,6 @@ import '../../models/analysis_result_model.dart';
 
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({super.key});
-
   @override
   State<InsightsScreen> createState() => _InsightsScreenState();
 }
@@ -32,9 +28,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     if (_initialLoadDone) return;
     _initialLoadDone = true;
     final now = DateTime.now();
-    await context
-        .read<AnalysisProvider>()
-        .analyze(month: now.month, year: now.year);
+    await context.read<AnalysisProvider>().analyze(month: now.month, year: now.year);
   }
 
   Future<void> _refresh() async {
@@ -45,24 +39,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
   @override
   Widget build(BuildContext context) {
     final analysis = context.watch<AnalysisProvider>();
-
+    final cs = Theme.of(context).colorScheme;
     return RefreshIndicator(
-      onRefresh: _refresh,
-      color: AppTheme.primary,
+      onRefresh: _refresh, color: AppTheme.primary,
       child: analysis.isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: AppTheme.primary),
-                  SizedBox(height: 16),
-                  Text(
-                    'Running financial analysis...',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                  ),
-                ],
-              ),
-            )
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const CircularProgressIndicator(color: AppTheme.primary), const SizedBox(height: 16),
+              Text('Running financial analysis...', style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+            ]))
           : !analysis.hasResult
               ? _buildError(analysis.errorMessage)
               : _buildContent(analysis.result!),
@@ -70,476 +54,232 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Widget _buildContent(AnalysisResultModel result) {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Period indicator ─────────────────────────────────────────────
-          Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined,
-                  size: 13, color: AppTheme.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                'Analysis for ${_formatPeriod(result.period)}',
-                style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: _refresh,
-                icon: const Icon(Icons.refresh, size: 14),
-                label: const Text('Reanalyse',
-                    style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-          ),
-
+          Row(children: [
+            Icon(Icons.calendar_today_outlined, size: 13, color: cs.onSurface.withOpacity(0.6)),
+            const SizedBox(width: 6),
+            Text('Analysis for ${_formatPeriod(result.period)}',
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+            const Spacer(),
+            TextButton.icon(onPressed: _refresh, icon: const Icon(Icons.refresh, size: 14),
+                label: const Text('Reanalyse', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap)),
+          ]),
           const SizedBox(height: 16),
-
-          // ── Score + persona card ─────────────────────────────────────────
           _buildScoreCard(result),
-
           const SizedBox(height: 16),
-
-          // ── Urgent alert banner ──────────────────────────────────────────
           if (result.isUrgent) _buildUrgentBanner(),
-
-          // ── Financial snapshot ───────────────────────────────────────────
           _buildSectionTitle('Financial Snapshot'),
           _buildSnapshotGrid(result),
-
           const SizedBox(height: 20),
-
-          // ── Projection ───────────────────────────────────────────────────
           if (result.projection.isNotEmpty) ...[
             _buildSectionTitle('Spending Projection'),
             _buildProjectionCard(result.projection),
             const SizedBox(height: 20),
           ],
-
-          // ── Advice list ──────────────────────────────────────────────────
           _buildSectionTitle('Smart Alerts & Advice'),
           const SizedBox(height: 2),
-          const Text(
-            'Generated by the Experta rule engine based on your data.',
-            style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-          ),
+          Text('Generated by the Experta rule engine based on your data.',
+              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
           const SizedBox(height: 10),
-          ...result.advice.asMap().entries.map(
-                (entry) => _buildAdviceCard(entry.key, entry.value),
-              ),
-
+          ...result.advice.asMap().entries.map((entry) => _buildAdviceCard(entry.key, entry.value)),
           const SizedBox(height: 20),
-
-          // ── Category variance ────────────────────────────────────────────
           if (result.categoryVariance.isNotEmpty) ...[
             _buildSectionTitle('Budget Variance'),
             const SizedBox(height: 10),
-            ...result.categoryVariance.entries.map(
-              (entry) => _buildVarianceRow(entry.key, entry.value),
-            ),
+            ...result.categoryVariance.entries.map((entry) => _buildVarianceRow(entry.key, entry.value)),
           ],
         ],
       ),
     );
   }
 
-  // ─── Score Card ───────────────────────────────────────────────────────────
   Widget _buildScoreCard(AnalysisResultModel result) {
     final color = AppTheme.scoreColor(result.category);
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      width: double.infinity, padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.85), color],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: LinearGradient(colors: [color.withOpacity(0.85), color],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${result.score.toInt()}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 60,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8, left: 4),
-                        child: Text('/100',
-                            style: TextStyle(
-                                color: Colors.white60, fontSize: 18)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      result.category,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('${result.score.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 60, fontWeight: FontWeight.w800, height: 1)),
+                const Padding(padding: EdgeInsets.only(bottom: 8, left: 4),
+                    child: Text('/100', style: TextStyle(color: Colors.white60, fontSize: 18))),
+              ]),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                child: Text(result.category, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
               ),
-              const Spacer(),
-              // Circular indicator
-              SizedBox(
-                width: 72,
-                height: 72,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: result.score / 100,
-                      backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                          Colors.white),
-                      strokeWidth: 6,
-                    ),
-                    const Icon(Icons.account_balance_wallet_rounded,
-                        color: Colors.white70, size: 28),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ]),
+            const Spacer(),
+            SizedBox(width: 72, height: 72,
+                child: Stack(alignment: Alignment.center, children: [
+                  CircularProgressIndicator(value: result.score / 100, backgroundColor: Colors.white24,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white), strokeWidth: 6),
+                  const Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 28),
+                ])),
+          ]),
           const SizedBox(height: 12),
-          Text(
-            result.persona,
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
-          ),
+          Text(result.persona, style: const TextStyle(color: Colors.white70, fontSize: 13)),
         ],
       ),
     );
   }
 
-  // ─── Urgent Banner ────────────────────────────────────────────────────────
   Widget _buildUrgentBanner() {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.error.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.error.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: const [
-          Icon(Icons.warning_amber_rounded,
-              color: AppTheme.error, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Urgent: Your guardian has been notified (if linked). '
-              'Immediate financial action is recommended.',
-              style: TextStyle(color: AppTheme.error, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.error.withOpacity(0.4))),
+      child: const Row(children: [
+        Icon(Icons.warning_amber_rounded, color: AppTheme.error, size: 20),
+        SizedBox(width: 10),
+        Expanded(child: Text(
+            'Urgent: Your guardian has been notified (if linked). Immediate financial action is recommended.',
+            style: TextStyle(color: AppTheme.error, fontSize: 13))),
+      ]),
     );
   }
 
-  // ─── Snapshot Grid ────────────────────────────────────────────────────────
   Widget _buildSnapshotGrid(AnalysisResultModel result) {
     final fmt = NumberFormat('#,##0.00', 'en_US');
     return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 2.2,
+      crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.2,
       children: [
-        _snapshotTile('Income',
-            '${AppConstants.currency} ${fmt.format(result.income)}',
-            AppTheme.success, Icons.arrow_downward),
-        _snapshotTile('Expenses',
-            '${AppConstants.currency} ${fmt.format(result.expenses)}',
-            AppTheme.error, Icons.arrow_upward),
-        _snapshotTile('Savings',
-            '${AppConstants.currency} ${fmt.format(result.savings)}',
-            result.savings >= 0 ? AppTheme.info : AppTheme.error,
-            Icons.savings_outlined),
-        _snapshotTile('Daily Budget',
-            '${AppConstants.currency} ${fmt.format(result.dailyBudget)}',
-            AppTheme.primary, Icons.today_outlined),
-        _snapshotTile('Savings Rate',
-            '${result.savingsRate.toStringAsFixed(1)}%',
-            result.savingsRate >= 20
-                ? AppTheme.success
-                : AppTheme.warning,
-            Icons.percent),
-        _snapshotTile('Expense Rate',
-            '${result.expenseRate.toStringAsFixed(1)}%',
-            result.expenseRate > 80
-                ? AppTheme.error
-                : AppTheme.textSecondary,
-            Icons.speed_outlined),
+        _snapshotTile('Income', '${AppConstants.currency} ${fmt.format(result.income)}', AppTheme.success, Icons.arrow_downward),
+        _snapshotTile('Expenses', '${AppConstants.currency} ${fmt.format(result.expenses)}', AppTheme.error, Icons.arrow_upward),
+        _snapshotTile('Savings', '${AppConstants.currency} ${fmt.format(result.savings)}',
+            result.savings >= 0 ? AppTheme.info : AppTheme.error, Icons.savings_outlined),
+        _snapshotTile('Daily Budget', '${AppConstants.currency} ${fmt.format(result.dailyBudget)}', AppTheme.primary, Icons.today_outlined),
+        _snapshotTile('Savings Rate', '${result.savingsRate.toStringAsFixed(1)}%',
+            result.savingsRate >= 20 ? AppTheme.success : AppTheme.warning, Icons.percent),
+        _snapshotTile('Expense Rate', '${result.expenseRate.toStringAsFixed(1)}%',
+            result.expenseRate > 80 ? AppTheme.error : AppTheme.textSecondary, Icons.speed_outlined),
       ],
     );
   }
 
-  Widget _snapshotTile(
-      String label, String value, Color color, IconData icon) {
+  Widget _snapshotTile(String label, String value, Color color, IconData icon) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        fontSize: 10, color: AppTheme.textSecondary)),
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: color),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text(label, style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.6))),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ])),
+      ]),
     );
   }
 
-  // ─── Projection Card ──────────────────────────────────────────────────────
   Widget _buildProjectionCard(String projection) {
-    final isPositive = projection.toLowerCase().contains('on track') ||
-        projection.toLowerCase().contains('surplus');
+    final isPositive = projection.toLowerCase().contains('on track') || projection.toLowerCase().contains('surplus');
+    final color = isPositive ? AppTheme.info : AppTheme.warning;
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: (isPositive ? AppTheme.info : AppTheme.warning)
-            .withOpacity(0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: (isPositive ? AppTheme.info : AppTheme.warning)
-              .withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.trending_up_outlined,
-              color:
-                  isPositive ? AppTheme.info : AppTheme.warning,
-              size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              projection,
-              style: TextStyle(
-                  fontSize: 13,
-                  color: isPositive
-                      ? AppTheme.info
-                      : AppTheme.warning),
-            ),
-          ),
-        ],
-      ),
+      width: double.infinity, padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.3))),
+      child: Row(children: [
+        Icon(Icons.trending_up_outlined, color: color, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text(projection, style: TextStyle(fontSize: 13, color: color))),
+      ]),
     );
   }
 
-  // ─── Advice Cards ─────────────────────────────────────────────────────────
   Widget _buildAdviceCard(int index, String advice) {
-    // Detect severity from keywords in the advice text.
-    final isCritical = advice.startsWith('CRITICAL') ||
-        advice.startsWith('EXTREME') ||
-        advice.startsWith('ALERT');
-    final isWarning = advice.startsWith('Warning') ||
-        advice.startsWith('WARN');
-    final isPositive = advice.startsWith('Good') ||
-        advice.startsWith('Excellent') ||
-        advice.startsWith('Outstanding') ||
-        advice.startsWith('WOW') ||
-        advice.startsWith('LEGENDARY');
+    final cs = Theme.of(context).colorScheme;
+    final isCritical = advice.startsWith('CRITICAL') || advice.startsWith('EXTREME') || advice.startsWith('ALERT');
+    final isWarning  = advice.startsWith('Warning') || advice.startsWith('WARN');
+    final isPositive = advice.startsWith('Good') || advice.startsWith('Excellent') ||
+        advice.startsWith('Outstanding') || advice.startsWith('WOW') || advice.startsWith('LEGENDARY');
 
-    Color borderColor;
-    Color iconColor;
-    IconData icon;
-
-    if (isCritical) {
-      borderColor = AppTheme.error;
-      iconColor = AppTheme.error;
-      icon = Icons.error_outline;
-    } else if (isWarning) {
-      borderColor = AppTheme.warning;
-      iconColor = AppTheme.warning;
-      icon = Icons.warning_amber_outlined;
-    } else if (isPositive) {
-      borderColor = AppTheme.success;
-      iconColor = AppTheme.success;
-      icon = Icons.check_circle_outline;
-    } else {
-      borderColor = AppTheme.info;
-      iconColor = AppTheme.info;
-      icon = Icons.info_outline;
-    }
+    Color borderColor; Color iconColor; IconData icon;
+    if (isCritical)       { borderColor = AppTheme.error;   iconColor = AppTheme.error;   icon = Icons.error_outline; }
+    else if (isWarning)   { borderColor = AppTheme.warning; iconColor = AppTheme.warning; icon = Icons.warning_amber_outlined; }
+    else if (isPositive)  { borderColor = AppTheme.success; iconColor = AppTheme.success; icon = Icons.check_circle_outline; }
+    else                  { borderColor = AppTheme.info;    iconColor = AppTheme.info;    icon = Icons.info_outline; }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor.withOpacity(0.35)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: iconColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              advice,
-              style: const TextStyle(
-                  fontSize: 13, color: AppTheme.textPrimary, height: 1.4),
-            ),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor.withOpacity(0.35))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 18, color: iconColor), const SizedBox(width: 10),
+        Expanded(child: Text(advice, style: TextStyle(fontSize: 13, color: cs.onSurface, height: 1.4))),
+      ]),
     );
   }
 
-  // ─── Variance Row ─────────────────────────────────────────────────────────
   Widget _buildVarianceRow(String category, CategoryVariance v) {
+    final cs = Theme.of(context).colorScheme;
     final fmt = NumberFormat('#,##0.00', 'en_US');
     final isOver = v.status == 'over';
     final color = isOver ? AppTheme.error : AppTheme.success;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(category,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: AppTheme.textPrimary)),
-              Text(
-                isOver
-                    ? 'Over by ${AppConstants.currency} ${fmt.format(v.variance.abs())}'
-                    : '${AppConstants.currency} ${fmt.format(v.variance.abs())} under',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: (v.usagePercent / 100).clamp(0.0, 1.0),
-              backgroundColor: AppTheme.divider,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-              minHeight: 5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${AppConstants.currency} ${fmt.format(v.spent)} spent of ${AppConstants.currency} ${fmt.format(v.budget)} budget '
-            '(${v.usagePercent.toStringAsFixed(1)}%)',
-            style: const TextStyle(
-                fontSize: 11, color: AppTheme.textSecondary),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(10)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(category, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface)),
+          Text(isOver ? 'Over by ${AppConstants.currency} ${fmt.format(v.variance.abs())}'
+              : '${AppConstants.currency} ${fmt.format(v.variance.abs())} under',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        ]),
+        const SizedBox(height: 6),
+        ClipRRect(borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(value: (v.usagePercent / 100).clamp(0.0, 1.0),
+                backgroundColor: Theme.of(context).dividerColor,
+                valueColor: AlwaysStoppedAnimation<Color>(color), minHeight: 5)),
+        const SizedBox(height: 4),
+        Text('${AppConstants.currency} ${fmt.format(v.spent)} spent of ${AppConstants.currency} ${fmt.format(v.budget)} budget (${v.usagePercent.toStringAsFixed(1)}%)',
+            style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+      ]),
     );
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, top: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary),
-      ),
+      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.onSurface)),
     );
   }
 
   Widget _buildError(String? message) {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
-      child: SizedBox(
-        height: 400,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.analytics_outlined,
-                  size: 52, color: AppTheme.textSecondary),
-              const SizedBox(height: 12),
-              Text(
-                message ??
-                    'Add income and expenses first,\nthen pull down to run analysis.',
-                textAlign: TextAlign.center,
-                style:
-                    const TextStyle(color: AppTheme.textSecondary),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: SizedBox(height: 400,
+          child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.analytics_outlined, size: 52, color: cs.onSurface.withOpacity(0.4)),
+            const SizedBox(height: 12),
+            Text(message ?? 'Add income and expenses first,\nthen pull down to run analysis.',
+                textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+          ]))),
     );
   }
 
@@ -548,8 +288,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
       final parts = period.split('-');
       final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]));
       return DateFormat('MMMM yyyy').format(dt);
-    } catch (_) {
-      return period;
-    }
+    } catch (_) { return period; }
   }
 }

@@ -1,7 +1,5 @@
 // lib/ui/budget/budget_screen.dart
-// Displays budget limits per category with actual spend and variance bars.
-// Data comes from BudgetProvider (limits) and ExpenseProvider (actuals).
-// Tapping a category row navigates to AddBudgetScreen to set/update the limit.
+// UPDATED: Full dark mode support.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +12,6 @@ import '../../providers/expense_provider.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
-
   @override
   State<BudgetScreen> createState() => _BudgetScreenState();
 }
@@ -31,16 +28,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
   Future<void> _loadData() async {
     if (_initialLoadDone) return;
     _initialLoadDone = true;
-
     final now = DateTime.now();
     final monthYear = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-
     await Future.wait([
       context.read<BudgetProvider>().fetchBudgets(monthYear: monthYear),
-      context.read<ExpenseProvider>().fetchExpenses(
-            month: now.month,
-            year: now.year,
-          ),
+      context.read<ExpenseProvider>().fetchExpenses(month: now.month, year: now.year),
     ]);
   }
 
@@ -62,17 +54,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          // ── Header Summary card ──────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: _buildSummaryHeader(budget, categoryTotals, fmt),
-          ),
-
-          // ── Category budget cards ────────────────────────────────────────
+          SliverToBoxAdapter(child: _buildSummaryHeader(budget, categoryTotals, fmt)),
           if (budget.isLoading)
             const SliverFillRemaining(
-              child: Center(
-                child: CircularProgressIndicator(color: AppTheme.primary),
-              ),
+              child: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
             )
           else if (budget.budgets.isEmpty)
             SliverFillRemaining(child: _buildEmptyState())
@@ -84,120 +69,72 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   (context, index) {
                     final b = budget.budgets[index];
                     final spent = categoryTotals[b.category] ?? 0.0;
-                    return _buildBudgetCard(
-                      category: b.category,
-                      limit: b.limit,
-                      spent: spent,
-                      fmt: fmt,
-                    );
+                    return _buildBudgetCard(category: b.category, limit: b.limit, spent: spent, fmt: fmt);
                   },
                   childCount: budget.budgets.length,
                 ),
               ),
             ),
-
-          // ── Unbudgeted categories (spending without a limit) ─────────────
           if (!budget.isLoading && categoryTotals.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _buildUnbudgetedSection(budget, categoryTotals, fmt),
-            ),
-
-          // Bottom padding so last card is not hidden behind the FAB
+            SliverToBoxAdapter(child: _buildUnbudgetedSection(budget, categoryTotals, fmt)),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );
   }
 
-  // ─── Summary Header ───────────────────────────────────────────────────────
-  Widget _buildSummaryHeader(
-    BudgetProvider budget,
-    Map<String, double> categoryTotals,
-    NumberFormat fmt,
-  ) {
-    final totalBudgeted =
-        budget.budgets.fold<double>(0, (sum, b) => sum + b.limit);
-    final totalSpent = budget.budgets.fold<double>(
-        0, (sum, b) => sum + (categoryTotals[b.category] ?? 0));
-    final remaining = totalBudgeted - totalSpent;
-    final usagePercent =
-        totalBudgeted > 0 ? (totalSpent / totalBudgeted) : 0.0;
+  // ─── Summary Header (always primary-colored — no dark mode change needed) ─
+  Widget _buildSummaryHeader(BudgetProvider budget, Map<String, double> categoryTotals, NumberFormat fmt) {
+    final totalBudgeted = budget.budgets.fold<double>(0, (sum, b) => sum + b.limit);
+    final totalSpent    = budget.budgets.fold<double>(0, (sum, b) => sum + (categoryTotals[b.category] ?? 0));
+    final remaining     = totalBudgeted - totalSpent;
+    final usagePercent  = totalBudgeted > 0 ? (totalSpent / totalBudgeted) : 0.0;
 
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Monthly Budget Overview',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
+          const Text('Monthly Budget Overview', style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _headerStat(
-                label: 'Budgeted',
-                value: '${AppConstants.currency} ${fmt.format(totalBudgeted)}',
-                color: Colors.white,
-              ),
-              _headerStat(
-                label: 'Spent',
-                value: '${AppConstants.currency} ${fmt.format(totalSpent)}',
-                color: Colors.white70,
-              ),
-              _headerStat(
-                label: 'Remaining',
-                value: '${AppConstants.currency} ${fmt.format(remaining)}',
-                color: remaining >= 0 ? Colors.greenAccent : Colors.redAccent,
-              ),
+              _headerStat(label: 'Budgeted',
+                  value: '${AppConstants.currency} ${fmt.format(totalBudgeted)}', color: Colors.white),
+              _headerStat(label: 'Spent',
+                  value: '${AppConstants.currency} ${fmt.format(totalSpent)}', color: Colors.white70),
+              _headerStat(label: 'Remaining',
+                  value: '${AppConstants.currency} ${fmt.format(remaining)}',
+                  color: remaining >= 0 ? Colors.greenAccent : Colors.redAccent),
             ],
           ),
           const SizedBox(height: 14),
-          // Overall usage bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: usagePercent.clamp(0.0, 1.0),
               backgroundColor: Colors.white24,
               valueColor: AlwaysStoppedAnimation<Color>(
-                usagePercent > 1.0
-                    ? Colors.redAccent
-                    : usagePercent > 0.8
-                        ? Colors.orangeAccent
-                        : Colors.greenAccent,
-              ),
+                usagePercent > 1.0 ? Colors.redAccent : usagePercent > 0.8 ? Colors.orangeAccent : Colors.greenAccent),
               minHeight: 8,
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            '${(usagePercent * 100).clamp(0, 999).toStringAsFixed(1)}% of total budget used',
-            style: const TextStyle(color: Colors.white60, fontSize: 11),
-          ),
+          Text('${(usagePercent * 100).clamp(0, 999).toStringAsFixed(1)}% of total budget used',
+              style: const TextStyle(color: Colors.white60, fontSize: 11)),
           const SizedBox(height: 14),
-          // Button to set a new budget
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.addBudget)
-                      .then((_) => _refresh()),
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.addBudget).then((_) => _refresh()),
               icon: const Icon(Icons.add, size: 16, color: Colors.white),
-              label: const Text(
-                'Set / Update a Budget',
-                style: TextStyle(color: Colors.white),
-              ),
+              label: const Text('Set / Update a Budget', style: TextStyle(color: Colors.white)),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white38),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
+                  side: const BorderSide(color: Colors.white38),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             ),
           ),
         ],
@@ -205,141 +142,88 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
-  Widget _headerStat({
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(color: Colors.white54, fontSize: 11)),
-        const SizedBox(height: 2),
-        Text(value,
-            style: TextStyle(
-                color: color, fontSize: 13, fontWeight: FontWeight.w700)),
-      ],
-    );
+  Widget _headerStat({required String label, required String value, required Color color}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text(' ', style: TextStyle(color: Colors.white54, fontSize: 11)), // spacer trick kept
+      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+      const SizedBox(height: 2),
+      Text(value, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+    ]);
   }
 
   // ─── Budget Card ──────────────────────────────────────────────────────────
   Widget _buildBudgetCard({
-    required String category,
-    required double limit,
-    required double spent,
-    required NumberFormat fmt,
+    required String category, required double limit,
+    required double spent, required NumberFormat fmt,
   }) {
-    final percent = limit > 0 ? (spent / limit) : 0.0;
-    final isOver = spent > limit;
+    final cs = Theme.of(context).colorScheme;
+    final percent   = limit > 0 ? (spent / limit) : 0.0;
+    final isOver    = spent > limit;
     final remaining = limit - spent;
 
     Color barColor;
-    if (isOver) {
-      barColor = AppTheme.error;
-    } else if (percent > 0.8) {
-      barColor = AppTheme.warning;
-    } else {
-      barColor = AppTheme.success;
-    }
+    if (isOver)          barColor = AppTheme.error;
+    else if (percent > 0.8) barColor = AppTheme.warning;
+    else                 barColor = AppTheme.success;
 
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(
-        context,
-        AppRoutes.addBudget,
-        // Pre-fill the form with current category and limit for editing.
-        arguments: {'category': category, 'currentLimit': limit},
-      ).then((_) => _refresh()),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.addBudget,
+          arguments: {'category': category, 'currentLimit': limit}).then((_) => _refresh()),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(12),
-          border: isOver
-              ? Border.all(color: AppTheme.error.withOpacity(0.4))
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: isOver ? Border.all(color: AppTheme.error.withOpacity(0.4)) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Category label + edit icon
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: barColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(_categoryIcon(category),
-                          size: 16, color: barColor),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      category,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                const Icon(Icons.edit_outlined,
-                    size: 14, color: AppTheme.textSecondary),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: barColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Icon(_categoryIcon(category), size: 16, color: barColor),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(category, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
+                ]),
+                Icon(Icons.edit_outlined, size: 14, color: cs.onSurface.withOpacity(0.5)),
               ],
             ),
             const SizedBox(height: 12),
-            // Variance progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: percent.clamp(0.0, 1.0),
-                backgroundColor: AppTheme.divider,
+                backgroundColor: Theme.of(context).dividerColor,
                 valueColor: AlwaysStoppedAnimation<Color>(barColor),
                 minHeight: 6,
               ),
             ),
             const SizedBox(height: 8),
-            // Spent vs limit
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${AppConstants.currency} ${fmt.format(spent)} of ${fmt.format(limit)}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppTheme.textSecondary),
-                ),
+                Text('${AppConstants.currency} ${fmt.format(spent)} of ${fmt.format(limit)}',
+                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
                 Text(
                   isOver
                       ? 'Over by ${AppConstants.currency} ${fmt.format(spent - limit)}'
                       : '${AppConstants.currency} ${fmt.format(remaining)} left',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isOver ? AppTheme.error : AppTheme.success,
-                  ),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: isOver ? AppTheme.error : AppTheme.success),
                 ),
               ],
             ),
             const SizedBox(height: 2),
-            Text(
-              '${(percent * 100).clamp(0, 999).toStringAsFixed(1)}% used',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: isOver ? AppTheme.error : AppTheme.textSecondary),
-            ),
+            Text('${(percent * 100).clamp(0, 999).toStringAsFixed(1)}% used',
+                style: TextStyle(fontSize: 11, color: isOver ? AppTheme.error : cs.onSurface.withOpacity(0.5))),
           ],
         ),
       ),
@@ -347,18 +231,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   // ─── Unbudgeted Categories ────────────────────────────────────────────────
-  // Shows categories where spending exists but no budget limit is set.
-  Widget _buildUnbudgetedSection(
-    BudgetProvider budget,
-    Map<String, double> categoryTotals,
-    NumberFormat fmt,
-  ) {
-    final budgetedCategories =
-        budget.budgets.map((b) => b.category).toSet();
-    final unbudgeted = categoryTotals.entries
-        .where((e) => !budgetedCategories.contains(e.key))
-        .toList();
-
+  Widget _buildUnbudgetedSection(BudgetProvider budget, Map<String, double> categoryTotals, NumberFormat fmt) {
+    final cs = Theme.of(context).colorScheme;
+    final budgetedCategories = budget.budgets.map((b) => b.category).toSet();
+    final unbudgeted = categoryTotals.entries.where((e) => !budgetedCategories.contains(e.key)).toList();
     if (unbudgeted.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -366,62 +242,32 @@ class _BudgetScreenState extends State<BudgetScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              'Spending Without a Budget',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textSecondary,
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('Spending Without a Budget',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.6))),
           ),
-          ...unbudgeted.map(
-            (e) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: AppTheme.warning.withOpacity(0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(_categoryIcon(e.key),
-                      size: 18, color: AppTheme.warning),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      e.key,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary),
-                    ),
-                  ),
-                  Text(
-                    '${AppConstants.currency} ${fmt.format(e.value)}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.warning),
-                  ),
-                  const SizedBox(width: 8),
-                  // Quick-add budget for this unbudgeted category
-                  GestureDetector(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.addBudget,
-                      arguments: {'category': e.key},
-                    ).then((_) => _refresh()),
-                    child: const Icon(Icons.add_circle_outline,
-                        size: 20, color: AppTheme.primary),
-                  ),
-                ],
-              ),
+          ...unbudgeted.map((e) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: cs.surface, borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.warning.withOpacity(0.4)),
             ),
-          ),
+            child: Row(children: [
+              Icon(_categoryIcon(e.key), size: 18, color: AppTheme.warning),
+              const SizedBox(width: 12),
+              Expanded(child: Text(e.key, style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface))),
+              Text('${AppConstants.currency} ${fmt.format(e.value)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.warning)),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, AppRoutes.addBudget,
+                    arguments: {'category': e.key}).then((_) => _refresh()),
+                child: const Icon(Icons.add_circle_outline, size: 20, color: AppTheme.primary),
+              ),
+            ]),
+          )),
         ],
       ),
     );
@@ -429,58 +275,35 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
   // ─── Empty State ──────────────────────────────────────────────────────────
   Widget _buildEmptyState() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.pie_chart_outline,
-              size: 52, color: AppTheme.textSecondary),
-          const SizedBox(height: 12),
-          const Text(
-            'No budgets set yet.',
-            style: TextStyle(
-                fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Tap the button above to set spending\nlimits for each category.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.textSecondary),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.addBudget)
-                    .then((_) => _refresh()),
-            icon: const Icon(Icons.add),
-            label: const Text('Set Your First Budget'),
-          ),
-        ],
-      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.pie_chart_outline, size: 52, color: cs.onSurface.withOpacity(0.4)),
+        const SizedBox(height: 12),
+        Text('No budgets set yet.', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+        const SizedBox(height: 6),
+        Text('Tap the button above to set spending\nlimits for each category.',
+            textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+        const SizedBox(height: 20),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.addBudget).then((_) => _refresh()),
+          icon: const Icon(Icons.add), label: const Text('Set Your First Budget'),
+        ),
+      ]),
     );
   }
 
-  // ─── Category icon helper ─────────────────────────────────────────────────
   IconData _categoryIcon(String category) {
     switch (category) {
-      case 'Food':
-        return Icons.restaurant_outlined;
-      case 'Transport':
-        return Icons.directions_bus_outlined;
-      case 'Entertainment':
-        return Icons.movie_outlined;
-      case 'Shopping':
-        return Icons.shopping_bag_outlined;
-      case 'Health':
-        return Icons.local_hospital_outlined;
-      case 'Education':
-        return Icons.school_outlined;
-      case 'Utilities':
-        return Icons.bolt_outlined;
-      case 'Rent':
-        return Icons.home_outlined;
-      default:
-        return Icons.category_outlined;
+      case 'Food':          return Icons.restaurant_outlined;
+      case 'Transport':     return Icons.directions_bus_outlined;
+      case 'Entertainment': return Icons.movie_outlined;
+      case 'Shopping':      return Icons.shopping_bag_outlined;
+      case 'Health':        return Icons.local_hospital_outlined;
+      case 'Education':     return Icons.school_outlined;
+      case 'Utilities':     return Icons.bolt_outlined;
+      case 'Rent':          return Icons.home_outlined;
+      default:              return Icons.category_outlined;
     }
   }
 }

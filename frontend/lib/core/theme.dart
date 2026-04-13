@@ -1,70 +1,72 @@
 // lib/core/theme.dart
-// UPDATED in Batch 9: added scoreColor() and categoryColor() static helpers
-// used by dashboard, insights, and reports screens.
+// UPDATED: Added darkTheme alongside the existing light theme.
+// Both themes share the same brand colors and design language.
 
 import 'package:flutter/material.dart';
 
 class AppTheme {
   // ─── Brand Colors ─────────────────────────────────────────────────────────
-  static const Color primary = Color(0xFF1B5E20);
+  static const Color primary      = Color(0xFF1B5E20);
   static const Color primaryLight = Color(0xFF4CAF50);
-  static const Color accent = Color(0xFF00BCD4);
+  static const Color accent       = Color(0xFF00BCD4);
 
   // ─── Semantic Colors ──────────────────────────────────────────────────────
   static const Color success = Color(0xFF2E7D32);
   static const Color warning = Color(0xFFF57F17);
-  static const Color error = Color(0xFFC62828);
-  static const Color info = Color(0xFF01579B);
+  static const Color error   = Color(0xFFC62828);
+  static const Color info    = Color(0xFF01579B);
 
-  // ─── Neutral Colors ───────────────────────────────────────────────────────
-  static const Color background = Color(0xFFF5F6FA);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color divider = Color(0xFFE0E0E0);
-  static const Color textPrimary = Color(0xFF1A1A2E);
+  // ─── Light Mode Neutral Colors ────────────────────────────────────────────
+  static const Color background    = Color(0xFFF5F6FA);
+  static const Color surface       = Color(0xFFFFFFFF);
+  static const Color divider       = Color(0xFFE0E0E0);
+  static const Color textPrimary   = Color(0xFF1A1A2E);
   static const Color textSecondary = Color(0xFF6B7280);
 
+  // ─── Dark Mode Neutral Colors ─────────────────────────────────────────────
+  static const Color darkBackground    = Color(0xFF121212);
+  static const Color darkSurface       = Color(0xFF1E1E1E);
+  static const Color darkDivider       = Color(0xFF2C2C2C);
+  static const Color darkTextPrimary   = Color(0xFFF0F0F0);
+  static const Color darkTextSecondary = Color(0xFF9E9E9E);
+
   // ─── Score Category → Color ───────────────────────────────────────────────
-  /// Returns the color matching a financial score category string.
-  /// Used by score cards on Dashboard and Insights.
   static Color scoreColor(String category) {
     switch (category) {
       case 'Elite':
       case 'Excellent':
-        return const Color(0xFF1B5E20);   // deep green
+        return const Color(0xFF1B5E20);
       case 'Very Good':
       case 'Good':
-        return const Color(0xFF388E3C);   // medium green
+        return const Color(0xFF388E3C);
       case 'Average':
-        return const Color(0xFF01579B);   // info blue
+        return const Color(0xFF01579B);
       case 'At Risk':
-        return const Color(0xFFF57F17);   // warning orange
+        return const Color(0xFFF57F17);
       case 'Critical':
-        return const Color(0xFFC62828);   // error red
+        return const Color(0xFFC62828);
       default:
-        return const Color(0xFF6B7280);   // neutral grey
+        return const Color(0xFF6B7280);
     }
   }
 
   // ─── Category Index → Color ───────────────────────────────────────────────
-  /// Returns a distinct color for each expense category index.
-  /// Used by the pie chart in reports_screen.dart.
-  /// 9 colors for 9 expense categories — matches AppConstants.expenseCategories order.
   static Color categoryColor(int index) {
     const colors = [
-      Color(0xFF1B5E20), // Food        — deep green
-      Color(0xFF0288D1), // Transport   — blue
-      Color(0xFF7B1FA2), // Entertainment — purple
-      Color(0xFFE65100), // Shopping    — deep orange
-      Color(0xFFC62828), // Health      — red
-      Color(0xFF00695C), // Education   — teal
-      Color(0xFFF57F17), // Utilities   — amber
-      Color(0xFF4527A0), // Rent        — deep purple
-      Color(0xFF546E7A), // Other       — blue grey
+      Color(0xFF1B5E20),
+      Color(0xFF0288D1),
+      Color(0xFF7B1FA2),
+      Color(0xFFE65100),
+      Color(0xFFC62828),
+      Color(0xFF00695C),
+      Color(0xFFF57F17),
+      Color(0xFF4527A0),
+      Color(0xFF546E7A),
     ];
     return colors[index % colors.length];
   }
 
-  // ─── Theme Data ───────────────────────────────────────────────────────────
+  // ─── Light Theme ──────────────────────────────────────────────────────────
   static ThemeData get theme {
     return ThemeData(
       useMaterial3: true,
@@ -73,8 +75,6 @@ class AppTheme {
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: background,
-
-      // AppBar
       appBarTheme: const AppBarTheme(
         backgroundColor: surface,
         foregroundColor: textPrimary,
@@ -87,8 +87,6 @@ class AppTheme {
         ),
         iconTheme: IconThemeData(color: textPrimary),
       ),
-
-      // Cards
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
@@ -97,8 +95,6 @@ class AppTheme {
           side: const BorderSide(color: divider, width: 0.5),
         ),
       ),
-
-      // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
@@ -113,16 +109,12 @@ class AppTheme {
           ),
         ),
       ),
-
-      // Text Button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primary,
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
-
-      // Outlined Button
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primary,
@@ -132,8 +124,6 @@ class AppTheme {
           ),
         ),
       ),
-
-      // Input fields
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
@@ -155,13 +145,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: error),
         ),
-        labelStyle:
-            const TextStyle(color: textSecondary, fontSize: 14),
-        hintStyle:
-            const TextStyle(color: textSecondary, fontSize: 14),
+        labelStyle: const TextStyle(color: textSecondary, fontSize: 14),
+        hintStyle:  const TextStyle(color: textSecondary, fontSize: 14),
       ),
-
-      // Bottom Navigation
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: surface,
         selectedItemColor: primary,
@@ -172,17 +158,121 @@ class AppTheme {
             TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         unselectedLabelStyle: TextStyle(fontSize: 11),
       ),
-
-      // FAB
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primary,
         foregroundColor: Colors.white,
         elevation: 4,
       ),
-
-      // Divider
       dividerTheme: const DividerThemeData(
         color: divider,
+        thickness: 0.5,
+        space: 0,
+      ),
+    );
+  }
+
+  // ─── Dark Theme ───────────────────────────────────────────────────────────
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primary,
+        brightness: Brightness.dark,
+      ).copyWith(
+        surface: darkSurface,
+        onSurface: darkTextPrimary,
+      ),
+      scaffoldBackgroundColor: darkBackground,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkSurface,
+        foregroundColor: darkTextPrimary,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
+          color: darkTextPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        iconTheme: IconThemeData(color: darkTextPrimary),
+      ),
+      cardTheme: CardThemeData(
+        color: darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: darkDivider, width: 0.5),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryLight,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryLight,
+          side: const BorderSide(color: primaryLight),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkSurface,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: darkDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: darkDivider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: primaryLight, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: error),
+        ),
+        labelStyle: const TextStyle(color: darkTextSecondary, fontSize: 14),
+        hintStyle:  const TextStyle(color: darkTextSecondary, fontSize: 14),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: darkSurface,
+        selectedItemColor: primaryLight,
+        unselectedItemColor: darkTextSecondary,
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+        selectedLabelStyle:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 11),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: darkDivider,
         thickness: 0.5,
         space: 0,
       ),
