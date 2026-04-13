@@ -126,8 +126,6 @@ class ApiClient {
   // CATEGORIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Get all categories — defaults + user's custom ones.
-  /// GET /api/categories
   static Future<Map<String, dynamic>> getCategories() async {
     final response = await http.get(
       Uri.parse('${AppConstants.baseUrl}/categories'),
@@ -136,8 +134,6 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Add a custom category.
-  /// POST /api/categories
   static Future<Map<String, dynamic>> addCategory(String name) async {
     final response = await http.post(
       Uri.parse('${AppConstants.baseUrl}/categories'),
@@ -147,11 +143,44 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Delete a custom category by name.
-  /// DELETE /api/categories/<name>
   static Future<Map<String, dynamic>> deleteCategory(String name) async {
     final response = await http.delete(
       Uri.parse('${AppConstants.baseUrl}/categories/${Uri.encodeComponent(name)}'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INCOME TYPES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Get all income types — defaults + user's custom ones.
+  /// GET /api/income-types
+  static Future<Map<String, dynamic>> getIncomeTypes() async {
+    final response = await http.get(
+      Uri.parse('${AppConstants.baseUrl}/income-types'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Add a custom income type.
+  /// POST /api/income-types
+  static Future<Map<String, dynamic>> addIncomeType(String name) async {
+    final response = await http.post(
+      Uri.parse('${AppConstants.baseUrl}/income-types'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'name': name}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Delete a custom income type by name.
+  /// DELETE /api/income-types/<n>
+  static Future<Map<String, dynamic>> deleteIncomeType(String name) async {
+    final response = await http.delete(
+      Uri.parse('${AppConstants.baseUrl}/income-types/${Uri.encodeComponent(name)}'),
       headers: await _authHeaders(),
     );
     return jsonDecode(response.body);
@@ -292,8 +321,6 @@ class ApiClient {
     );
     return jsonDecode(response.body);
   }
-
-  // ─── Goal Contributions ───────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> addContribution({
     required int goalId,

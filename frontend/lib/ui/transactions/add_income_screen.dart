@@ -1,14 +1,16 @@
 // lib/ui/transactions/add_income_screen.dart
 // Form screen to log a new income record.
-// Fields: amount, income_type, description.
-// UPDATED: After a successful save, refreshes income + analysis providers
-// so the dashboard updates automatically when the user navigates back.
+// UPDATED: Income types are now loaded dynamically from the backend.
+// Users can add custom types via the + Add chip at the end of the row.
+// Custom types can be deleted with a long press.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
+import '../../data/remote/api_client.dart';
+import '../../models/user_category_model.dart';
 import '../../providers/income_provider.dart';
 import '../../providers/analysis_provider.dart';
 
@@ -20,16 +22,182 @@ class AddIncomeScreen extends StatefulWidget {
 }
 
 class _AddIncomeScreenState extends State<AddIncomeScreen> {
-  final _formKey             = GlobalKey<FormState>();
-  final _amountController    = TextEditingController();
+  final _formKey               = GlobalKey<FormState>();
+  final _amountController      = TextEditingController();
   final _descriptionController = TextEditingController();
+
   String _selectedType = 'monthly';
+
+  // Income types loaded from backend (defaults + custom)
+  List<UserCategoryModel> _incomeTypes = [];
+  bool _typesLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIncomeTypes();
+  }
 
   @override
   void dispose() {
     _amountController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadIncomeTypes() async {
+    setState(() => _typesLoading = true);
+    try {
+      final data = await ApiClient.getIncomeTypes();
+      if (data['status'] == 'success') {
+        setState(() {
+          _incomeTypes = (data['income_types'] as List)
+              .map((e) => UserCategoryModel.fromJson(e))
+              .toList();
+        });
+      }
+    } catch (_) {
+      // Fallback to hardcoded defaults if API fails
+      setState(() {
+        _incomeTypes = AppConstants.incomeTypes
+            .map((t) => UserCategoryModel.defaultCategory(t))
+            .toList();
+      });
+    } finally {
+      setState(() => _typesLoading = false);
+    }
+  }
+
+  void _showAddTypeDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Income Type'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'e.g. Freelance, Business, Scholarship...',
+            prefixIcon: Icon(Icons.label_outline),
+          ),
+          onSubmitted: (_) => _submitNewType(ctx, controller.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => _submitNewType(ctx, controller.text),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitNewType(BuildContext ctx, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+
+    Navigator.pop(ctx);
+
+    try {
+      final data = await ApiClient.addIncomeType(trimmed);
+      if (!mounted) return;
+      if (data['status'] == 'success') {
+        final newType = UserCategoryModel.fromJson(data['income_type']);
+        setState(() {
+          _incomeTypes.add(newType);
+          _selectedType = newType.name;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Income type "${newType.name}" added.'),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Failed to add income type.'),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to add income type. Check your connection.'),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteCustomType(UserCategoryModel type) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Income Type'),
+        content: Text(
+            'Delete "${type.name}"? Existing income records with this type will not be affected.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final data = await ApiClient.deleteIncomeType(type.name);
+      if (!mounted) return;
+      if (data['status'] == 'success') {
+        setState(() {
+          _incomeTypes.removeWhere((t) => t.name == type.name);
+          if (_selectedType == type.name) _selectedType = 'monthly';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Income type "${type.name}" deleted.'),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Failed to delete income type.'),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete income type. Check your connection.'),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _submit() async {
@@ -48,16 +216,12 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     if (!mounted) return;
 
     if (success) {
-      // Refresh income list and re-run analysis so dashboard is up to date
-      // the moment the user navigates back — no manual pull-to-refresh needed.
       final now = DateTime.now();
       await Future.wait([
         incomeProvider.fetchIncome(month: now.month, year: now.year),
         analysisProvider.analyze(month: now.month, year: now.year),
       ]);
-
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Income added successfully.'),
@@ -128,47 +292,111 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               const SizedBox(height: 24),
 
               // ── Income Type ──────────────────────────────────────────────
-              const Text('Income Type',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                      fontSize: 13)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: AppConstants.incomeTypes.map((type) {
-                  final isSelected = _selectedType == type;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedType = type),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.primary
-                            : AppTheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.primary
-                              : AppTheme.divider,
-                        ),
-                      ),
-                      child: Text(
-                        _typeLabel(type),
-                        style: TextStyle(
-                          fontSize: 13,
+              Row(
+                children: [
+                  const Text('Income Type',
+                      style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: isSelected
-                              ? Colors.white
-                              : AppTheme.textPrimary,
-                        ),
-                      ),
+                          color: AppTheme.textSecondary,
+                          fontSize: 13)),
+                  const Spacer(),
+                  if (!_typesLoading)
+                    Text(
+                      'Long press custom to delete',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary.withOpacity(0.7),
+                          fontStyle: FontStyle.italic),
                     ),
-                  );
-                }).toList(),
+                ],
               ),
+              const SizedBox(height: 8),
+
+              _typesLoading
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CircularProgressIndicator(
+                            color: AppTheme.primary),
+                      ))
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Existing income type chips
+                        ..._incomeTypes.map((type) {
+                          final isSelected = _selectedType == type.name;
+                          return GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedType = type.name),
+                            onLongPress: type.isCustom
+                                ? () => _deleteCustomType(type)
+                                : null,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppTheme.primary
+                                    : AppTheme.surface,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppTheme.primary
+                                      : type.isCustom
+                                          ? AppTheme.primary.withOpacity(0.4)
+                                          : AppTheme.divider,
+                                ),
+                              ),
+                              child: Text(
+                                _typeLabel(type.name),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : type.isCustom
+                                          ? AppTheme.primary
+                                          : AppTheme.textPrimary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+
+                        // + Add chip
+                        GestureDetector(
+                          onTap: _showAddTypeDialog,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppTheme.primary.withOpacity(0.4),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add,
+                                    size: 14, color: AppTheme.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Add',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
 
               const SizedBox(height: 24),
 
@@ -223,7 +451,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
       case 'helb':     return 'HELB';
       case 'parental': return 'Parental';
       case 'gig':      return 'Gig';
-      default:         return 'Other';
+      case 'other':    return 'Other';
+      default:         return type; // custom types display as-is
     }
   }
 }
