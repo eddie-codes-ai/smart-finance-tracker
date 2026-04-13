@@ -7,7 +7,6 @@ db = SQLAlchemy()
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-INCOME_TYPES        = ('monthly', 'daily', 'helb', 'parental', 'gig', 'other')
 EXPENSE_TYPES       = ('daily', 'monthly', 'one-time', 'recurring')
 RECURRENCE_CHOICES  = ('daily', 'weekly', 'biweekly', 'monthly')
 
@@ -15,6 +14,11 @@ RECURRENCE_CHOICES  = ('daily', 'weekly', 'biweekly', 'monthly')
 DEFAULT_EXPENSE_CATEGORIES = (
     'Food', 'Transport', 'Entertainment', 'Shopping',
     'Health', 'Education', 'Utilities', 'Rent', 'Other'
+)
+
+# Default income types — permanent, cannot be deleted by users.
+DEFAULT_INCOME_TYPES = (
+    'monthly', 'daily', 'helb', 'parental', 'gig', 'other'
 )
 
 TRIGGER_CHOICES      = ('auto', 'manual')
@@ -36,14 +40,15 @@ class User(db.Model):
     deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
     created_at            = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    incomes           = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
-    expenses          = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
-    budgets           = db.relationship("Budget",         backref="owner", lazy=True, cascade="all, delete-orphan")
-    savings_goals     = db.relationship("SavingsGoal",    backref="owner", lazy=True, cascade="all, delete-orphan")
-    guardian          = db.relationship("Guardian",       backref="user",  uselist=False, cascade="all, delete-orphan")
-    guardian_reports  = db.relationship("GuardianReport", backref="user",  lazy=True, cascade="all, delete-orphan")
-    helb_plan         = db.relationship("HelbPlan",       backref="user",  uselist=False, cascade="all, delete-orphan")
-    custom_categories = db.relationship("UserCategory",   backref="user",  lazy=True, cascade="all, delete-orphan")
+    incomes            = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
+    expenses           = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
+    budgets            = db.relationship("Budget",         backref="owner", lazy=True, cascade="all, delete-orphan")
+    savings_goals      = db.relationship("SavingsGoal",    backref="owner", lazy=True, cascade="all, delete-orphan")
+    guardian           = db.relationship("Guardian",       backref="user",  uselist=False, cascade="all, delete-orphan")
+    guardian_reports   = db.relationship("GuardianReport", backref="user",  lazy=True, cascade="all, delete-orphan")
+    helb_plan          = db.relationship("HelbPlan",       backref="user",  uselist=False, cascade="all, delete-orphan")
+    custom_categories  = db.relationship("UserCategory",   backref="user",  lazy=True, cascade="all, delete-orphan")
+    custom_income_types = db.relationship("UserIncomeType", backref="user", lazy=True, cascade="all, delete-orphan")
 
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
@@ -86,7 +91,7 @@ class Income(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     amount      = db.Column(db.Float, nullable=False)
-    income_type = db.Column(db.String(20), nullable=False, default="monthly")
+    income_type = db.Column(db.String(50), nullable=False, default="monthly")
     description = db.Column(db.String(255), nullable=True)
     date_added  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -229,12 +234,7 @@ class GoalContribution(db.Model):
 # ─── UserCategory ─────────────────────────────────────────────────────────────
 
 class UserCategory(db.Model):
-    """
-    Custom expense categories added by a student.
-    Default categories (Food, Transport, etc.) are hardcoded and never stored here.
-    Users can add and delete their own custom categories freely.
-    Category names are unique per user — no duplicates allowed.
-    """
+    """Custom expense categories added by a student."""
     __tablename__ = "user_categories"
 
     id         = db.Column(db.Integer, primary_key=True)
@@ -256,6 +256,39 @@ class UserCategory(db.Model):
 
     def __repr__(self):
         return f"<UserCategory {self.name}>"
+
+
+# ─── UserIncomeType ───────────────────────────────────────────────────────────
+
+class UserIncomeType(db.Model):
+    """
+    Custom income types added by a student.
+    Default income types (monthly, daily, helb, parental, gig, other)
+    are hardcoded and never stored here.
+    Users can add and delete their own custom income types freely.
+    Names are unique per user — no duplicates allowed.
+    """
+    __tablename__ = "user_income_types"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name       = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "name", name="uq_user_income_type_name"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id":         self.id,
+            "name":       self.name,
+            "created_at": self.created_at.isoformat(),
+            "is_custom":  True,
+        }
+
+    def __repr__(self):
+        return f"<UserIncomeType {self.name}>"
 
 
 # ─── Guardian ─────────────────────────────────────────────────────────────────

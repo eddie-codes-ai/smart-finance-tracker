@@ -10,8 +10,9 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from sqlalchemy import extract
 
 from models import (db, User, Income, Expense, Budget, SavingsGoal,
-                    GoalContribution, HelbPlan, UserCategory,
-                    DEFAULT_EXPENSE_CATEGORIES, DELETION_GRACE_HOURS)
+                    GoalContribution, HelbPlan, UserCategory, UserIncomeType,
+                    DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_TYPES,
+                    DELETION_GRACE_HOURS)
 from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.email_service import send_reset_email
@@ -246,51 +247,31 @@ def cancel_account_deletion():
 @api.route("/categories", methods=["GET"])
 @jwt_required()
 def get_categories():
-    """
-    GET /api/categories
-    Returns all categories available to the user:
-    - Default categories (always present, is_custom: False)
-    - User's custom categories (is_custom: True)
-    """
     user_id = int(get_jwt_identity())
     custom  = UserCategory.query.filter_by(user_id=user_id).order_by(UserCategory.created_at).all()
-
     defaults = [{"name": c, "is_custom": False} for c in DEFAULT_EXPENSE_CATEGORIES]
     customs  = [c.to_dict() for c in custom]
-
     return success({"categories": defaults + customs})
 
 
 @api.route("/categories", methods=["POST"])
 @jwt_required()
 def add_category():
-    """
-    POST /api/categories
-    Body: { "name": "Gym" }
-    Adds a custom category for this user.
-    Returns 409 if the name already exists (default or custom).
-    """
     user_id = int(get_jwt_identity())
     data    = request.get_json()
     name    = data.get("name", "").strip()
-
     if not name:
         return error("Category name is required.")
     if len(name) > 50:
         return error("Category name must be 50 characters or less.")
-
-    # Prevent duplicating a default category
     if name in DEFAULT_EXPENSE_CATEGORIES:
         return error(f"'{name}' is already a default category.", 409)
-
-    # Prevent duplicating an existing custom category (case-insensitive)
     existing = UserCategory.query.filter(
         UserCategory.user_id == user_id,
         UserCategory.name.ilike(name),
     ).first()
     if existing:
         return error(f"You already have a category named '{existing.name}'.", 409)
-
     category = UserCategory(user_id=user_id, name=name)
     db.session.add(category)
     db.session.commit()
@@ -300,25 +281,83 @@ def add_category():
 @api.route("/categories/<string:name>", methods=["DELETE"])
 @jwt_required()
 def delete_category(name: str):
-    """
-    DELETE /api/categories/<name>
-    Deletes a custom category by name.
-    Returns 403 if trying to delete a default category.
-    Returns 404 if custom category not found.
-    """
     user_id = int(get_jwt_identity())
-
-    # Protect default categories
     if name in DEFAULT_EXPENSE_CATEGORIES:
         return error(f"'{name}' is a default category and cannot be deleted.", 403)
-
     category = UserCategory.query.filter_by(user_id=user_id, name=name).first()
     if not category:
         return error("Custom category not found.", 404)
-
     db.session.delete(category)
     db.session.commit()
     return success({"message": f"Category '{name}' deleted."})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INCOME TYPES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api.route("/income-types", methods=["GET"])
+@jwt_required()
+def get_income_types():
+    """
+    GET /api/income-types
+    Returns all income types available to the user:
+    - Default income types (always present, is_custom: False)
+    - User's custom income types (is_custom: True)
+    """
+    user_id = int(get_jwt_identity())
+    custom  = UserIncomeType.query.filter_by(user_id=user_id).order_by(UserIncomeType.created_at).all()
+    defaults = [{"name": t, "is_custom": False} for t in DEFAULT_INCOME_TYPES]
+    customs  = [t.to_dict() for t in custom]
+    return success({"income_types": defaults + customs})
+
+
+@api.route("/income-types", methods=["POST"])
+@jwt_required()
+def add_income_type():
+    """
+    POST /api/income-types
+    Body: { "name": "freelance" }
+    Adds a custom income type for this user.
+    """
+    user_id = int(get_jwt_identity())
+    data    = request.get_json()
+    name    = data.get("name", "").strip().lower()
+    if not name:
+        return error("Income type name is required.")
+    if len(name) > 50:
+        return error("Income type name must be 50 characters or less.")
+    if name in DEFAULT_INCOME_TYPES:
+        return error(f"'{name}' is already a default income type.", 409)
+    existing = UserIncomeType.query.filter(
+        UserIncomeType.user_id == user_id,
+        UserIncomeType.name.ilike(name),
+    ).first()
+    if existing:
+        return error(f"You already have an income type named '{existing.name}'.", 409)
+    income_type = UserIncomeType(user_id=user_id, name=name)
+    db.session.add(income_type)
+    db.session.commit()
+    return success({"message": "Income type added.", "income_type": income_type.to_dict()}, 201)
+
+
+@api.route("/income-types/<string:name>", methods=["DELETE"])
+@jwt_required()
+def delete_income_type(name: str):
+    """
+    DELETE /api/income-types/<name>
+    Deletes a custom income type by name.
+    Returns 403 if trying to delete a default income type.
+    """
+    user_id = int(get_jwt_identity())
+    if name in DEFAULT_INCOME_TYPES:
+        return error(f"'{name}' is a default income type and cannot be deleted.", 403)
+    income_type = UserIncomeType.query.filter_by(user_id=user_id, name=name).first()
+    if not income_type:
+        return error("Custom income type not found.", 404)
+    db.session.delete(income_type)
+    db.session.commit()
+    return success({"message": f"Income type '{name}' deleted."})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
