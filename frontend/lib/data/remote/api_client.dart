@@ -95,11 +95,32 @@ class ApiClient {
     if (email           != null && email.isNotEmpty)           body['email']            = email;
     if (newPassword     != null && newPassword.isNotEmpty)     body['new_password']     = newPassword;
     if (currentPassword != null && currentPassword.isNotEmpty) body['current_password'] = currentPassword;
-
     final response = await http.put(
       Uri.parse('${AppConstants.baseUrl}/auth/profile'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Request account deletion. Schedules deletion after 96-hour grace period.
+  /// [password] is required to confirm the request.
+  static Future<Map<String, dynamic>> deleteAccount({
+    required String password,
+  }) async {
+    final response = await http.delete(
+      Uri.parse('${AppConstants.baseUrl}/auth/account'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'password': password}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Cancel a pending account deletion request.
+  static Future<Map<String, dynamic>> cancelDeletion() async {
+    final response = await http.post(
+      Uri.parse('${AppConstants.baseUrl}/auth/cancel-deletion'),
+      headers: await _authHeaders(),
     );
     return jsonDecode(response.body);
   }
@@ -242,8 +263,6 @@ class ApiClient {
 
   // ─── Goal Contributions ───────────────────────────────────────────────────
 
-  /// Add a contribution toward a specific goal.
-  /// POST /api/goals/<id>/contribute
   static Future<Map<String, dynamic>> addContribution({
     required int goalId,
     required double amount,
@@ -259,8 +278,6 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Get all contributions for a specific goal.
-  /// GET /api/goals/<id>/contributions
   static Future<Map<String, dynamic>> getContributions(int goalId) async {
     final response = await http.get(
       Uri.parse('${AppConstants.baseUrl}/goals/$goalId/contributions'),
@@ -269,9 +286,6 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Get all contributions across all goals for a given month.
-  /// Used by the transactions screen Savings tab.
-  /// GET /api/contributions?month=4&year=2026
   static Future<Map<String, dynamic>> getAllContributions({int? month, int? year}) async {
     final now = DateTime.now();
     final uri = Uri.parse('${AppConstants.baseUrl}/contributions').replace(

@@ -1,5 +1,7 @@
 // lib/providers/auth_provider.dart
-// UPDATED: Added updateProfile() method for the Profile/Account Settings screen.
+// UPDATED: Added requestDeletion() and cancelDeletion() for 96-hour
+// account deletion grace period. Login now stores pending_deletion
+// state so the profile screen can show the cancellation banner.
 
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,21 +11,23 @@ import 'package:frontend/models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
 
-  // ── Google Sign-In client ─────────────────────────────────────────────────
-  // Replace YOUR_WEB_CLIENT_ID with your actual Web Client ID from Google Cloud Console
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
   );
 
   // ── State ─────────────────────────────────────────────────────────────────
   UserModel? _user;
-  bool       _isLoading = false;
+  bool       _isLoading      = false;
   String?    _error;
+  bool       _pendingDeletion = false;   // true if account is scheduled for deletion
+  String?    _deletionDueAt;             // ISO string of when deletion will execute
 
-  UserModel? get user      => _user;
-  bool       get isLoading => _isLoading;
-  String?    get error     => _error;
-  bool       get isLoggedIn => _user != null;
+  UserModel? get user             => _user;
+  bool       get isLoading        => _isLoading;
+  String?    get error            => _error;
+  bool       get isLoggedIn       => _user != null;
+  bool       get pendingDeletion  => _pendingDeletion;
+  String?    get deletionDueAt    => _deletionDueAt;
 
   void _setLoading(bool val) { _isLoading = val; notifyListeners(); }
   void clearError() { _error = null; notifyListeners(); }
@@ -32,13 +36,10 @@ class AuthProvider extends ChangeNotifier {
   // STANDARD AUTH
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Restore session from stored JWT token on app launch.
   Future<bool> restoreSession() async {
     return await SecureStorage.isLoggedIn();
   }
 
-  /// Register a new account.
-  /// [email] is optional but required for Forgot Password to work.
   Future<bool> register(
     String username,
     String password, {
@@ -65,7 +66,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Log in with username and password.
   Future<bool> login(String username, String password) async {
     _setLoading(true);
     _error = null;
@@ -75,6 +75,12 @@ class AuthProvider extends ChangeNotifier {
         _user = UserModel.fromJson(response['user']);
         await SecureStorage.saveToken(response['token']);
         await SecureStorage.saveUsername(_user!.username);
+
+        // Store pending deletion state so the profile screen can show
+        // the cancellation banner immediately after login.
+        _pendingDeletion = response['pending_deletion'] ?? false;
+        _deletionDueAt   = response['deletion_due_at'] as String?;
+
         _setLoading(false);
         return true;
       }
@@ -88,11 +94,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Clear session and sign out.
   Future<void> logout() async {
     await SecureStorage.clearAll();
     try { await _googleSignIn.signOut(); } catch (_) {}
-    _user = null;
+    _user            = null;
+    _pendingDeletion = false;
+    _deletionDueAt   = null;
     notifyListeners();
   }
 
@@ -136,7 +143,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // FORGOT PASSWORD
+  // FORGOT / RESET PASSWORD
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<bool> forgotPassword(String email) async {
@@ -154,10 +161,6 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RESET PASSWORD
-  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<bool> resetPassword(String email, String code, String newPassword) async {
     _setLoading(true);
@@ -179,12 +182,6 @@ class AuthProvider extends ChangeNotifier {
   // UPDATE PROFILE
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Update username, email, and/or password.
-  /// On success, updates the in-memory [_user] with the new values returned
-  /// from the backend so the UI reflects changes immediately without re-login.
-  ///
-  /// [currentPassword] is required when [newPassword] is provided.
-  /// Returns true on success, false on failure (error message set in [_error]).
   Future<bool> updateProfile({
     String? username,
     String? email,
@@ -201,14 +198,67 @@ class AuthProvider extends ChangeNotifier {
         currentPassword: currentPassword,
       );
       if (response['status'] == 'success') {
-        // Refresh in-memory user from the updated backend response
         _user = UserModel.fromJson(response['user']);
-        // Keep secure storage username in sync
         await SecureStorage.saveUsername(_user!.username);
         _setLoading(false);
         return true;
       }
       _error = response['message'] ?? 'Update failed.';
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      _error = 'Network error: $e';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ACCOUNT DELETION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Request account deletion. Password required for confirmation.
+  /// On success, sets pendingDeletion = true and stores deletionDueAt.
+  /// The account will be permanently deleted after 96 hours unless cancelled.
+  Future<bool> requestDeletion({required String password}) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final response = await ApiClient.deleteAccount(password: password);
+      if (response['status'] == 'success') {
+        _pendingDeletion = true;
+        _deletionDueAt   = response['deletion_due_at'] as String?;
+        _setLoading(false);
+        return true;
+      }
+      _error = response['message'] ?? 'Failed to schedule deletion.';
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      _error = 'Network error: $e';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  /// Cancel a pending account deletion request.
+  /// On success, clears pendingDeletion and deletionDueAt.
+  Future<bool> cancelDeletion() async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final response = await ApiClient.cancelDeletion();
+      if (response['status'] == 'success') {
+        _pendingDeletion = false;
+        _deletionDueAt   = null;
+        // Refresh user from response so to_dict fields are up to date
+        if (response['user'] != null) {
+          _user = UserModel.fromJson(response['user']);
+        }
+        _setLoading(false);
+        return true;
+      }
+      _error = response['message'] ?? 'Failed to cancel deletion.';
       _setLoading(false);
       return false;
     } catch (e) {
