@@ -103,8 +103,6 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Request account deletion. Schedules deletion after 96-hour grace period.
-  /// [password] is required to confirm the request.
   static Future<Map<String, dynamic>> deleteAccount({
     required String password,
   }) async {
@@ -116,10 +114,44 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  /// Cancel a pending account deletion request.
   static Future<Map<String, dynamic>> cancelDeletion() async {
     final response = await http.post(
       Uri.parse('${AppConstants.baseUrl}/auth/cancel-deletion'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CATEGORIES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Get all categories — defaults + user's custom ones.
+  /// GET /api/categories
+  static Future<Map<String, dynamic>> getCategories() async {
+    final response = await http.get(
+      Uri.parse('${AppConstants.baseUrl}/categories'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Add a custom category.
+  /// POST /api/categories
+  static Future<Map<String, dynamic>> addCategory(String name) async {
+    final response = await http.post(
+      Uri.parse('${AppConstants.baseUrl}/categories'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'name': name}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  /// Delete a custom category by name.
+  /// DELETE /api/categories/<name>
+  static Future<Map<String, dynamic>> deleteCategory(String name) async {
+    final response = await http.delete(
+      Uri.parse('${AppConstants.baseUrl}/categories/${Uri.encodeComponent(name)}'),
       headers: await _authHeaders(),
     );
     return jsonDecode(response.body);
