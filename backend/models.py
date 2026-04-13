@@ -10,13 +10,14 @@ db = SQLAlchemy()
 INCOME_TYPES        = ('monthly', 'daily', 'helb', 'parental', 'gig', 'other')
 EXPENSE_TYPES       = ('daily', 'monthly', 'one-time', 'recurring')
 RECURRENCE_CHOICES  = ('daily', 'weekly', 'biweekly', 'monthly')
-EXPENSE_CATEGORIES  = (
+
+# Default categories — permanent, cannot be deleted by users.
+DEFAULT_EXPENSE_CATEGORIES = (
     'Food', 'Transport', 'Entertainment', 'Shopping',
     'Health', 'Education', 'Utilities', 'Rent', 'Other'
 )
-TRIGGER_CHOICES     = ('auto', 'manual')
 
-# Grace period before a deletion request is executed (in hours)
+TRIGGER_CHOICES      = ('auto', 'manual')
 DELETION_GRACE_HOURS = 96
 
 
@@ -25,26 +26,24 @@ DELETION_GRACE_HOURS = 96
 class User(db.Model):
     __tablename__ = "users"
 
-    id                   = db.Column(db.Integer,     primary_key=True)
-    username             = db.Column(db.String(80),  unique=True,  nullable=False)
-    password_hash        = db.Column(db.String(256),               nullable=False)
-    email                = db.Column(db.String(120),  unique=True,  nullable=True)
-    google_id            = db.Column(db.String(100),  unique=True,  nullable=True)
-    reset_token          = db.Column(db.String(10),                 nullable=True)
-    reset_token_expiry   = db.Column(db.DateTime,                   nullable=True)
-    # Deletion grace period — set when user requests account deletion.
-    # Account is permanently deleted after DELETION_GRACE_HOURS hours.
-    # Set back to None if user cancels the deletion request.
+    id                    = db.Column(db.Integer,    primary_key=True)
+    username              = db.Column(db.String(80), unique=True,  nullable=False)
+    password_hash         = db.Column(db.String(256),              nullable=False)
+    email                 = db.Column(db.String(120), unique=True,  nullable=True)
+    google_id             = db.Column(db.String(100), unique=True,  nullable=True)
+    reset_token           = db.Column(db.String(10),               nullable=True)
+    reset_token_expiry    = db.Column(db.DateTime,                  nullable=True)
     deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
-    created_at           = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at            = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    incomes          = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
-    expenses         = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
-    budgets          = db.relationship("Budget",         backref="owner", lazy=True, cascade="all, delete-orphan")
-    savings_goals    = db.relationship("SavingsGoal",    backref="owner", lazy=True, cascade="all, delete-orphan")
-    guardian         = db.relationship("Guardian",       backref="user",  uselist=False, cascade="all, delete-orphan")
-    guardian_reports = db.relationship("GuardianReport", backref="user",  lazy=True, cascade="all, delete-orphan")
-    helb_plan        = db.relationship("HelbPlan",       backref="user",  uselist=False, cascade="all, delete-orphan")
+    incomes           = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
+    expenses          = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
+    budgets           = db.relationship("Budget",         backref="owner", lazy=True, cascade="all, delete-orphan")
+    savings_goals     = db.relationship("SavingsGoal",    backref="owner", lazy=True, cascade="all, delete-orphan")
+    guardian          = db.relationship("Guardian",       backref="user",  uselist=False, cascade="all, delete-orphan")
+    guardian_reports  = db.relationship("GuardianReport", backref="user",  lazy=True, cascade="all, delete-orphan")
+    helb_plan         = db.relationship("HelbPlan",       backref="user",  uselist=False, cascade="all, delete-orphan")
+    custom_categories = db.relationship("UserCategory",   backref="user",  lazy=True, cascade="all, delete-orphan")
 
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
@@ -58,7 +57,6 @@ class User(db.Model):
 
     @property
     def deletion_due_at(self):
-        """When the account will be permanently deleted."""
         if not self.deletion_requested_at:
             return None
         from datetime import timedelta
@@ -226,6 +224,38 @@ class GoalContribution(db.Model):
 
     def __repr__(self):
         return f"<GoalContribution goal={self.goal_id} KES {self.amount}>"
+
+
+# ─── UserCategory ─────────────────────────────────────────────────────────────
+
+class UserCategory(db.Model):
+    """
+    Custom expense categories added by a student.
+    Default categories (Food, Transport, etc.) are hardcoded and never stored here.
+    Users can add and delete their own custom categories freely.
+    Category names are unique per user — no duplicates allowed.
+    """
+    __tablename__ = "user_categories"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name       = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "name", name="uq_user_category_name"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id":         self.id,
+            "name":       self.name,
+            "created_at": self.created_at.isoformat(),
+            "is_custom":  True,
+        }
+
+    def __repr__(self):
+        return f"<UserCategory {self.name}>"
 
 
 # ─── Guardian ─────────────────────────────────────────────────────────────────

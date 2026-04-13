@@ -9,7 +9,9 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from sqlalchemy import extract
 
-from models import db, User, Income, Expense, Budget, SavingsGoal, GoalContribution, HelbPlan, DELETION_GRACE_HOURS
+from models import (db, User, Income, Expense, Budget, SavingsGoal,
+                    GoalContribution, HelbPlan, UserCategory,
+                    DEFAULT_EXPENSE_CATEGORIES, DELETION_GRACE_HOURS)
 from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.email_service import send_reset_email
@@ -44,10 +46,6 @@ def _verify_google_token(id_token_str: str) -> Optional[dict]:
 
 
 def _purge_expired_deletions():
-    """
-    Called on every login. Permanently deletes any accounts whose
-    96-hour grace period has expired.
-    """
     cutoff = datetime.utcnow() - timedelta(hours=DELETION_GRACE_HOURS)
     expired = User.query.filter(
         User.deletion_requested_at != None,
@@ -85,25 +83,19 @@ def register():
 
 @api.route("/auth/login", methods=["POST"])
 def login():
-    # Purge any accounts whose 96-hour deletion window has passed.
     _purge_expired_deletions()
-
     data     = request.get_json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return error("Invalid username or password.", 401)
-
     token = create_access_token(identity=str(user.id))
-
-    # If the account is pending deletion, inform the Flutter app so it can
-    # show the cancellation prompt.
     return success({
-        "token":              token,
-        "user":               user.to_dict(),
-        "pending_deletion":   user.is_pending_deletion,
-        "deletion_due_at":    user.deletion_due_at.isoformat() if user.deletion_due_at else None,
+        "token":            token,
+        "user":             user.to_dict(),
+        "pending_deletion": user.is_pending_deletion,
+        "deletion_due_at":  user.deletion_due_at.isoformat() if user.deletion_due_at else None,
     })
 
 
@@ -188,24 +180,20 @@ def update_profile():
     new_email        = data.get("email", "").strip().lower() or None
     new_password     = data.get("new_password", "") or None
     current_password = data.get("current_password", "") or None
-
     if not any([new_username, new_email, new_password]):
-        return error("No changes provided. Supply at least one of: username, email, new_password.")
-
+        return error("No changes provided.")
     if new_username:
         if new_username == user.username:
             return error("New username is the same as your current username.")
         if User.query.filter(User.username == new_username, User.id != user_id).first():
             return error("That username is already taken.", 409)
         user.username = new_username
-
     if new_email:
         if new_email == user.email:
             return error("New email is the same as your current email.")
         if User.query.filter(User.email == new_email, User.id != user_id).first():
             return error("That email is already registered.", 409)
         user.email = new_email
-
     if new_password:
         if not current_password:
             return error("Current password is required to set a new password.")
@@ -214,7 +202,6 @@ def update_profile():
         if len(new_password) < 6:
             return error("New password must be at least 6 characters long.")
         user.set_password(new_password)
-
     db.session.commit()
     return success({"message": "Profile updated successfully.", "user": user.to_dict()})
 
@@ -222,33 +209,20 @@ def update_profile():
 @api.route("/auth/account", methods=["DELETE"])
 @jwt_required()
 def request_account_deletion():
-    """
-    DELETE /api/auth/account
-    Body: { "password": "current_password" }
-
-    Schedules the account for deletion after a 96-hour grace period.
-    The account remains accessible during this window and can be
-    cancelled via POST /api/auth/cancel-deletion.
-    """
-    user_id = int(get_jwt_identity())
-    user    = User.query.get(user_id)
-    data    = request.get_json() or {}
+    user_id  = int(get_jwt_identity())
+    user     = User.query.get(user_id)
+    data     = request.get_json() or {}
     password = data.get("password", "")
-
     if not password:
         return error("Password is required to delete your account.")
     if not user.check_password(password):
         return error("Incorrect password.", 401)
-
     if user.is_pending_deletion:
         return error("Account deletion is already scheduled.", 400)
-
     user.deletion_requested_at = datetime.utcnow()
     db.session.commit()
-
     return success({
-        "message":         f"Account scheduled for deletion in {DELETION_GRACE_HOURS} hours. "
-                           f"You can cancel this before {user.deletion_due_at.strftime('%d %b %Y at %H:%M UTC')}.",
+        "message":         f"Account scheduled for deletion in {DELETION_GRACE_HOURS} hours.",
         "deletion_due_at": user.deletion_due_at.isoformat(),
     })
 
@@ -256,22 +230,95 @@ def request_account_deletion():
 @api.route("/auth/cancel-deletion", methods=["POST"])
 @jwt_required()
 def cancel_account_deletion():
-    """
-    POST /api/auth/cancel-deletion
-    JWT required.
-
-    Cancels a pending account deletion request.
-    """
     user_id = int(get_jwt_identity())
     user    = User.query.get(user_id)
-
     if not user.is_pending_deletion:
         return error("No pending deletion request found.", 400)
-
     user.deletion_requested_at = None
     db.session.commit()
-
     return success({"message": "Account deletion cancelled. Your account is safe.", "user": user.to_dict()})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CATEGORIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api.route("/categories", methods=["GET"])
+@jwt_required()
+def get_categories():
+    """
+    GET /api/categories
+    Returns all categories available to the user:
+    - Default categories (always present, is_custom: False)
+    - User's custom categories (is_custom: True)
+    """
+    user_id = int(get_jwt_identity())
+    custom  = UserCategory.query.filter_by(user_id=user_id).order_by(UserCategory.created_at).all()
+
+    defaults = [{"name": c, "is_custom": False} for c in DEFAULT_EXPENSE_CATEGORIES]
+    customs  = [c.to_dict() for c in custom]
+
+    return success({"categories": defaults + customs})
+
+
+@api.route("/categories", methods=["POST"])
+@jwt_required()
+def add_category():
+    """
+    POST /api/categories
+    Body: { "name": "Gym" }
+    Adds a custom category for this user.
+    Returns 409 if the name already exists (default or custom).
+    """
+    user_id = int(get_jwt_identity())
+    data    = request.get_json()
+    name    = data.get("name", "").strip()
+
+    if not name:
+        return error("Category name is required.")
+    if len(name) > 50:
+        return error("Category name must be 50 characters or less.")
+
+    # Prevent duplicating a default category
+    if name in DEFAULT_EXPENSE_CATEGORIES:
+        return error(f"'{name}' is already a default category.", 409)
+
+    # Prevent duplicating an existing custom category (case-insensitive)
+    existing = UserCategory.query.filter(
+        UserCategory.user_id == user_id,
+        UserCategory.name.ilike(name),
+    ).first()
+    if existing:
+        return error(f"You already have a category named '{existing.name}'.", 409)
+
+    category = UserCategory(user_id=user_id, name=name)
+    db.session.add(category)
+    db.session.commit()
+    return success({"message": "Category added.", "category": category.to_dict()}, 201)
+
+
+@api.route("/categories/<string:name>", methods=["DELETE"])
+@jwt_required()
+def delete_category(name: str):
+    """
+    DELETE /api/categories/<name>
+    Deletes a custom category by name.
+    Returns 403 if trying to delete a default category.
+    Returns 404 if custom category not found.
+    """
+    user_id = int(get_jwt_identity())
+
+    # Protect default categories
+    if name in DEFAULT_EXPENSE_CATEGORIES:
+        return error(f"'{name}' is a default category and cannot be deleted.", 403)
+
+    category = UserCategory.query.filter_by(user_id=user_id, name=name).first()
+    if not category:
+        return error("Custom category not found.", 404)
+
+    db.session.delete(category)
+    db.session.commit()
+    return success({"message": f"Category '{name}' deleted."})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
