@@ -1,4 +1,6 @@
 // lib/ui/auth/register_screen.dart
+// UPDATED: Full dark mode support.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/core/routes.dart';
@@ -7,7 +9,6 @@ import 'package:frontend/providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
-
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
@@ -17,8 +18,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController  = TextEditingController();
-  bool  _obscurePassword    = true;
-  bool  _obscureConfirm     = true;
+  bool _obscurePassword = true;
+  bool _obscureConfirm  = true;
 
   @override
   void dispose() {
@@ -38,29 +39,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text;
     final confirm  = _confirmController.text;
 
-    if (username.isEmpty || password.isEmpty) {
-      _snack('Username and password are required.');
-      return;
-    }
-    if (password.length < 6) {
-      _snack('Password must be at least 6 characters.');
-      return;
-    }
-    if (password != confirm) {
-      _snack('Passwords do not match.');
-      return;
-    }
-    if (email.isNotEmpty && !email.contains('@')) {
-      _snack('Please enter a valid email address.');
-      return;
-    }
+    if (username.isEmpty || password.isEmpty) { _snack('Username and password are required.'); return; }
+    if (password.length < 6) { _snack('Password must be at least 6 characters.'); return; }
+    if (password != confirm) { _snack('Passwords do not match.'); return; }
+    if (email.isNotEmpty && !email.contains('@')) { _snack('Please enter a valid email address.'); return; }
 
     final auth = context.read<AuthProvider>();
-    final ok   = await auth.register(
-      username,
-      password,
-      email: email.isEmpty ? null : email,
-    );
+    final ok   = await auth.register(username, password, email: email.isEmpty ? null : email);
 
     if (!mounted) return;
     if (ok) {
@@ -73,9 +58,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final cs   = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      // No backgroundColor — uses theme's scaffoldBackgroundColor automatically
       appBar: AppBar(
         title: const Text('Create Account'),
         backgroundColor: AppTheme.primary,
@@ -88,14 +74,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           children: [
             const Icon(Icons.account_balance_wallet, size: 56, color: AppTheme.primary),
             const SizedBox(height: 8),
-            const Text(
-              'Smart Finance Tracker',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary),
-            ),
+            const Text('Smart Finance Tracker', textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary)),
             const SizedBox(height: 4),
-            const Text('Create your free account', textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black45)),
+            Text('Create your free account', textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurface.withOpacity(0.45))),
             const SizedBox(height: 32),
 
             // Username
@@ -161,14 +144,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ElevatedButton(
               onPressed: auth.isLoading ? null : _register,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
+                  backgroundColor: AppTheme.primary, padding: const EdgeInsets.symmetric(vertical: 16)),
               child: auth.isLoading
                   ? const SizedBox(height: 20, width: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Create Account',
-                      style: TextStyle(color: Colors.white, fontSize: 16)),
+                  : const Text('Create Account', style: TextStyle(color: Colors.white, fontSize: 16)),
             ),
             const SizedBox(height: 20),
 
@@ -176,7 +156,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Already have an account? '),
+                Text('Already have an account? ',
+                    style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
                 GestureDetector(
                   onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
                   child: const Text('Log In',

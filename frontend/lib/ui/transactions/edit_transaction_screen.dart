@@ -1,16 +1,5 @@
 // lib/ui/transactions/edit_transaction_screen.dart
-//
-// Edit screen for both income and expense records.
-//
-// Strategy: delete the old record + create a new one with updated values.
-// This avoids needing a PUT/PATCH backend endpoint.
-//
-// UPDATED: After a successful save, refreshes the relevant provider and
-// re-runs analysis so the dashboard updates automatically on return.
-//
-// Editable fields:
-//   Expense  — amount, description, category
-//   Income   — amount, description, income type
+// UPDATED: Full dark mode support.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +17,6 @@ class EditTransactionScreen extends StatefulWidget {
 
   const EditTransactionScreen.expense({super.key, required ExpenseModel this.expense})
       : income = null;
-
   const EditTransactionScreen.income({super.key, required IncomeModel this.income})
       : expense = null;
 
@@ -37,7 +25,7 @@ class EditTransactionScreen extends StatefulWidget {
 }
 
 class _EditTransactionScreenState extends State<EditTransactionScreen> {
-  final _formKey   = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
   late TextEditingController _amountController;
   late TextEditingController _descController;
   late String _selectedCategory;
@@ -46,9 +34,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
   bool get _isExpense => widget.expense != null;
 
-  static const _incomeTypes = [
-    'monthly', 'helb', 'parental', 'gig', 'daily', 'other'
-  ];
+  static const _incomeTypes = ['monthly', 'helb', 'parental', 'gig', 'daily', 'other'];
 
   @override
   void initState() {
@@ -78,27 +64,19 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
-
     try {
       final newAmount = double.parse(_amountController.text.trim());
       final newDesc   = _descController.text.trim();
       final now       = DateTime.now();
 
       if (_isExpense) {
-        final e                  = widget.expense!;
-        final expenseProvider    = context.read<ExpenseProvider>();
-        final analysisProvider   = context.read<AnalysisProvider>();
-
+        final e                = widget.expense!;
+        final expenseProvider  = context.read<ExpenseProvider>();
+        final analysisProvider = context.read<AnalysisProvider>();
         await expenseProvider.deleteExpense(e.id);
         await expenseProvider.addExpense(
-          amount:      newAmount,
-          category:    _selectedCategory,
-          description: newDesc,
-          expenseType: e.expenseType,
-        );
-
-        // Refresh expense list and re-run analysis so dashboard is
-        // up to date the moment the user navigates back.
+            amount: newAmount, category: _selectedCategory,
+            description: newDesc, expenseType: e.expenseType);
         await Future.wait([
           expenseProvider.fetchExpenses(month: now.month, year: now.year),
           analysisProvider.analyze(month: now.month, year: now.year),
@@ -107,16 +85,9 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         final i                = widget.income!;
         final incomeProvider   = context.read<IncomeProvider>();
         final analysisProvider = context.read<AnalysisProvider>();
-
         await incomeProvider.deleteIncome(i.id);
         await incomeProvider.addIncome(
-          amount:      newAmount,
-          incomeType:  _selectedIncomeType,
-          description: newDesc,
-        );
-
-        // Refresh income list and re-run analysis so dashboard is
-        // up to date the moment the user navigates back.
+            amount: newAmount, incomeType: _selectedIncomeType, description: newDesc);
         await Future.wait([
           incomeProvider.fetchIncome(month: now.month, year: now.year),
           analysisProvider.analyze(month: now.month, year: now.year),
@@ -125,22 +96,14 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
       if (!mounted) return;
       Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isExpense
-              ? 'Expense updated successfully.'
-              : 'Income updated successfully.'),
-          backgroundColor: AppTheme.primary,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_isExpense ? 'Expense updated successfully.' : 'Income updated successfully.'),
+          backgroundColor: AppTheme.primary));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Failed to save changes: ${e.toString()}'),
-          backgroundColor: AppTheme.error,
-        ),
-      );
+          backgroundColor: AppTheme.error));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -148,10 +111,11 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs      = Theme.of(context).colorScheme;
+    final divider = Theme.of(context).dividerColor;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isExpense ? 'Edit Expense' : 'Edit Income'),
-      ),
+      appBar: AppBar(title: Text(_isExpense ? 'Edit Expense' : 'Edit Income')),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -162,50 +126,33 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
               // ── Info banner ───────────────────────────────────────────────
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppTheme.info.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: AppTheme.info.withOpacity(0.25)),
+                  border: Border.all(color: AppTheme.info.withOpacity(0.25)),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        size: 16, color: AppTheme.info),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Changes are saved by deleting the old record and '
-                        'creating a new one. The date will reset to today.',
-                        style: TextStyle(
-                            fontSize: 12, color: AppTheme.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
+                child: Row(children: [
+                  Icon(Icons.info_outline, size: 16, color: AppTheme.info),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                      'Changes are saved by deleting the old record and creating a new one. The date will reset to today.',
+                      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)))),
+                ]),
               ),
 
               const SizedBox(height: 24),
 
               // ── Amount ────────────────────────────────────────────────────
-              _sectionLabel('Amount (KES)'),
+              _sectionLabel('Amount (KES)', cs),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true),
-                decoration: const InputDecoration(
-                  prefixText: 'KES  ',
-                  hintText: '0.00',
-                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(prefixText: 'KES  ', hintText: '0.00'),
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Amount is required';
-                  }
-                  if (double.tryParse(v.trim()) == null ||
-                      double.parse(v.trim()) <= 0) {
+                  if (v == null || v.trim().isEmpty) return 'Amount is required';
+                  if (double.tryParse(v.trim()) == null || double.parse(v.trim()) <= 0) {
                     return 'Enter a valid amount';
                   }
                   return null;
@@ -215,66 +162,37 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
               const SizedBox(height: 20),
 
               // ── Description ───────────────────────────────────────────────
-              _sectionLabel('Description'),
+              _sectionLabel('Description', cs),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _descController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  hintText: 'What was this for?',
-                ),
-              ),
+              TextFormField(controller: _descController, maxLines: 2,
+                  decoration: const InputDecoration(hintText: 'What was this for?')),
 
               const SizedBox(height: 20),
 
               // ── Category (expenses only) ──────────────────────────────────
               if (_isExpense) ...[
-                _sectionLabel('Category'),
+                _sectionLabel('Category', cs),
                 const SizedBox(height: 10),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 8, runSpacing: 8,
                   children: AppConstants.expenseCategories.map((cat) {
                     final selected = cat == _selectedCategory;
                     return GestureDetector(
-                      onTap: () =>
-                          setState(() => _selectedCategory = cat),
+                      onTap: () => setState(() => _selectedCategory = cat),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 160),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 9),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                         decoration: BoxDecoration(
-                          color: selected
-                              ? AppTheme.primary
-                              : AppTheme.surface,
+                          color: selected ? AppTheme.primary : cs.surface,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: selected
-                                ? AppTheme.primary
-                                : AppTheme.divider,
-                          ),
-                          boxShadow: selected
-                              ? []
-                              : [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 1),
-                                  )
-                                ],
+                          border: Border.all(color: selected ? AppTheme.primary : divider),
+                          boxShadow: selected ? [] : [
+                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))
+                          ],
                         ),
-                        child: Text(
-                          cat,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: selected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            color: selected
-                                ? Colors.white
-                                : AppTheme.textPrimary,
-                          ),
-                        ),
+                        child: Text(cat, style: TextStyle(fontSize: 13,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                            color: selected ? Colors.white : cs.onSurface)),
                       ),
                     );
                   }).toList(),
@@ -284,43 +202,25 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
               // ── Income type (income only) ─────────────────────────────────
               if (!_isExpense) ...[
-                _sectionLabel('Income type'),
+                _sectionLabel('Income type', cs),
                 const SizedBox(height: 10),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 8, runSpacing: 8,
                   children: _incomeTypes.map((type) {
                     final selected = type == _selectedIncomeType;
                     return GestureDetector(
-                      onTap: () =>
-                          setState(() => _selectedIncomeType = type),
+                      onTap: () => setState(() => _selectedIncomeType = type),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 160),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 9),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                         decoration: BoxDecoration(
-                          color: selected
-                              ? AppTheme.primary
-                              : AppTheme.surface,
+                          color: selected ? AppTheme.primary : cs.surface,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: selected
-                                ? AppTheme.primary
-                                : AppTheme.divider,
-                          ),
+                          border: Border.all(color: selected ? AppTheme.primary : divider),
                         ),
-                        child: Text(
-                          type.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            color: selected
-                                ? Colors.white
-                                : AppTheme.textPrimary,
-                          ),
-                        ),
+                        child: Text(type.toUpperCase(), style: TextStyle(fontSize: 12,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                            color: selected ? Colors.white : cs.onSurface)),
                       ),
                     );
                   }).toList(),
@@ -334,26 +234,18 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
               ElevatedButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
+                    ? const SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.check),
                 label: Text(_saving ? 'Saving...' : 'Save changes'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
               ),
 
               const SizedBox(height: 12),
 
               OutlinedButton(
                 onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                 child: const Text('Cancel'),
               ),
             ],
@@ -363,14 +255,8 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     );
   }
 
-  Widget _sectionLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: AppTheme.textSecondary,
-      ),
-    );
+  Widget _sectionLabel(String text, ColorScheme cs) {
+    return Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+        color: cs.onSurface.withOpacity(0.6)));
   }
 }
