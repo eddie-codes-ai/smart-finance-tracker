@@ -12,7 +12,7 @@ import 'package:frontend/models/user_model.dart';
 class AuthProvider extends ChangeNotifier {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+    serverClientId: '866645622012-5km05daf6mniv6f5i5e1p5tq2be3m204.apps.googleusercontent.com.',
   );
 
   // ── State ─────────────────────────────────────────────────────────────────
