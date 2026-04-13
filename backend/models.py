@@ -16,20 +16,27 @@ EXPENSE_CATEGORIES  = (
 )
 TRIGGER_CHOICES     = ('auto', 'manual')
 
+# Grace period before a deletion request is executed (in hours)
+DELETION_GRACE_HOURS = 96
+
 
 # ─── User ─────────────────────────────────────────────────────────────────────
 
 class User(db.Model):
     __tablename__ = "users"
 
-    id                 = db.Column(db.Integer,     primary_key=True)
-    username           = db.Column(db.String(80),  unique=True,  nullable=False)
-    password_hash      = db.Column(db.String(256),               nullable=False)
-    email              = db.Column(db.String(120),  unique=True,  nullable=True)
-    google_id          = db.Column(db.String(100),  unique=True,  nullable=True)
-    reset_token        = db.Column(db.String(10),                 nullable=True)
-    reset_token_expiry = db.Column(db.DateTime,                   nullable=True)
-    created_at         = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    id                   = db.Column(db.Integer,     primary_key=True)
+    username             = db.Column(db.String(80),  unique=True,  nullable=False)
+    password_hash        = db.Column(db.String(256),               nullable=False)
+    email                = db.Column(db.String(120),  unique=True,  nullable=True)
+    google_id            = db.Column(db.String(100),  unique=True,  nullable=True)
+    reset_token          = db.Column(db.String(10),                 nullable=True)
+    reset_token_expiry   = db.Column(db.DateTime,                   nullable=True)
+    # Deletion grace period — set when user requests account deletion.
+    # Account is permanently deleted after DELETION_GRACE_HOURS hours.
+    # Set back to None if user cancels the deletion request.
+    deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     incomes          = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
     expenses         = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
@@ -45,12 +52,28 @@ class User(db.Model):
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
 
+    @property
+    def is_pending_deletion(self) -> bool:
+        return self.deletion_requested_at is not None
+
+    @property
+    def deletion_due_at(self):
+        """When the account will be permanently deleted."""
+        if not self.deletion_requested_at:
+            return None
+        from datetime import timedelta
+        return self.deletion_requested_at + timedelta(hours=DELETION_GRACE_HOURS)
+
     def to_dict(self) -> dict:
         return {
-            "id":         self.id,
-            "username":   self.username,
-            "email":      self.email,
-            "created_at": self.created_at.isoformat(),
+            "id":                    self.id,
+            "username":              self.username,
+            "email":                 self.email,
+            "created_at":            self.created_at.isoformat(),
+            "deletion_requested_at": self.deletion_requested_at.isoformat()
+                                     if self.deletion_requested_at else None,
+            "deletion_due_at":       self.deletion_due_at.isoformat()
+                                     if self.deletion_due_at else None,
         }
 
     def __repr__(self):
@@ -155,14 +178,12 @@ class SavingsGoal(db.Model):
     date_set    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     is_active   = db.Column(db.Boolean, default=True, nullable=False)
 
-    # Contributions toward this goal
     contributions = db.relationship(
         "GoalContribution", backref="goal", lazy=True, cascade="all, delete-orphan"
     )
 
     @property
     def total_contributed(self) -> float:
-        """Sum of all contributions made toward this goal."""
         return sum(c.amount for c in self.contributions)
 
     def to_dict(self) -> dict:
@@ -184,18 +205,13 @@ class SavingsGoal(db.Model):
 # ─── GoalContribution ─────────────────────────────────────────────────────────
 
 class GoalContribution(db.Model):
-    """
-    A single contribution made by a student toward a specific savings goal.
-    Contributions reduce the student's available balance and count toward
-    goal progress. They appear in the transactions history as a distinct type.
-    """
     __tablename__ = "goal_contributions"
 
     id         = db.Column(db.Integer, primary_key=True)
     goal_id    = db.Column(db.Integer, db.ForeignKey("savings_goals.id"), nullable=False)
     user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     amount     = db.Column(db.Float, nullable=False)
-    note       = db.Column(db.String(255), nullable=True)   # e.g. "Saved from HELB"
+    note       = db.Column(db.String(255), nullable=True)
     date_added = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def to_dict(self) -> dict:
@@ -265,11 +281,6 @@ class GuardianReport(db.Model):
 # ─── HelbPlan ─────────────────────────────────────────────────────────────────
 
 class HelbPlan(db.Model):
-    """
-    Stores the student's HELB semester budget plan.
-    One plan per student (uselist=False). Saving a new plan overwrites the old one.
-    Allocations are stored as JSON text — a dict of {category: amount}.
-    """
     __tablename__ = "helb_plans"
 
     id            = db.Column(db.Integer, primary_key=True)

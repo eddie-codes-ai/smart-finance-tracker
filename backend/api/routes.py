@@ -2,13 +2,14 @@ import json as _json
 import os
 import random
 import secrets
+from datetime import datetime, timedelta
 from typing import Optional
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from datetime import datetime, timedelta
 from sqlalchemy import extract
 
-from models import db, User, Income, Expense, Budget, SavingsGoal, GoalContribution, HelbPlan
+from models import db, User, Income, Expense, Budget, SavingsGoal, GoalContribution, HelbPlan, DELETION_GRACE_HOURS
 from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.email_service import send_reset_email
@@ -37,9 +38,25 @@ def _verify_google_token(id_token_str: str) -> Optional[dict]:
         from google.oauth2 import id_token as g_id_token
         from google.auth.transport import requests as g_requests
         idinfo = g_id_token.verify_oauth2_token(id_token_str, g_requests.Request(), google_client_id)
-        return {"google_id": idinfo["sub"], "email": idinfo.get("email",""), "name": idinfo.get("name","")}
+        return {"google_id": idinfo["sub"], "email": idinfo.get("email", ""), "name": idinfo.get("name", "")}
     except Exception:
         return None
+
+
+def _purge_expired_deletions():
+    """
+    Called on every login. Permanently deletes any accounts whose
+    96-hour grace period has expired.
+    """
+    cutoff = datetime.utcnow() - timedelta(hours=DELETION_GRACE_HOURS)
+    expired = User.query.filter(
+        User.deletion_requested_at != None,
+        User.deletion_requested_at <= cutoff,
+    ).all()
+    for user in expired:
+        db.session.delete(user)
+    if expired:
+        db.session.commit()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -68,14 +85,26 @@ def register():
 
 @api.route("/auth/login", methods=["POST"])
 def login():
+    # Purge any accounts whose 96-hour deletion window has passed.
+    _purge_expired_deletions()
+
     data     = request.get_json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return error("Invalid username or password.", 401)
+
     token = create_access_token(identity=str(user.id))
-    return success({"token": token, "user": user.to_dict()})
+
+    # If the account is pending deletion, inform the Flutter app so it can
+    # show the cancellation prompt.
+    return success({
+        "token":              token,
+        "user":               user.to_dict(),
+        "pending_deletion":   user.is_pending_deletion,
+        "deletion_due_at":    user.deletion_due_at.isoformat() if user.deletion_due_at else None,
+    })
 
 
 @api.route("/auth/google", methods=["POST"])
@@ -96,7 +125,7 @@ def google_signin():
         if user:
             user.google_id = google_id
     if not user:
-        base = (email.split("@")[0] if email else name.replace(" ","").lower()) or "user"
+        base = (email.split("@")[0] if email else name.replace(" ", "").lower()) or "user"
         base = base[:30]
         username, counter = base, 1
         while User.query.filter_by(username=username).first():
@@ -188,6 +217,61 @@ def update_profile():
 
     db.session.commit()
     return success({"message": "Profile updated successfully.", "user": user.to_dict()})
+
+
+@api.route("/auth/account", methods=["DELETE"])
+@jwt_required()
+def request_account_deletion():
+    """
+    DELETE /api/auth/account
+    Body: { "password": "current_password" }
+
+    Schedules the account for deletion after a 96-hour grace period.
+    The account remains accessible during this window and can be
+    cancelled via POST /api/auth/cancel-deletion.
+    """
+    user_id = int(get_jwt_identity())
+    user    = User.query.get(user_id)
+    data    = request.get_json() or {}
+    password = data.get("password", "")
+
+    if not password:
+        return error("Password is required to delete your account.")
+    if not user.check_password(password):
+        return error("Incorrect password.", 401)
+
+    if user.is_pending_deletion:
+        return error("Account deletion is already scheduled.", 400)
+
+    user.deletion_requested_at = datetime.utcnow()
+    db.session.commit()
+
+    return success({
+        "message":         f"Account scheduled for deletion in {DELETION_GRACE_HOURS} hours. "
+                           f"You can cancel this before {user.deletion_due_at.strftime('%d %b %Y at %H:%M UTC')}.",
+        "deletion_due_at": user.deletion_due_at.isoformat(),
+    })
+
+
+@api.route("/auth/cancel-deletion", methods=["POST"])
+@jwt_required()
+def cancel_account_deletion():
+    """
+    POST /api/auth/cancel-deletion
+    JWT required.
+
+    Cancels a pending account deletion request.
+    """
+    user_id = int(get_jwt_identity())
+    user    = User.query.get(user_id)
+
+    if not user.is_pending_deletion:
+        return error("No pending deletion request found.", 400)
+
+    user.deletion_requested_at = None
+    db.session.commit()
+
+    return success({"message": "Account deletion cancelled. Your account is safe.", "user": user.to_dict()})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -364,93 +448,52 @@ def close_goal(goal_id):
     return success({"message": "Goal closed."})
 
 
-# ─── Goal Contributions ───────────────────────────────────────────────────────
-
 @api.route("/goals/<int:goal_id>/contribute", methods=["POST"])
 @jwt_required()
 def add_contribution(goal_id):
-    """
-    POST /api/goals/<id>/contribute
-    Body: { "amount": 3000, "note": "Saved from HELB" }
-    Adds a contribution toward the goal. Reduces the student's available balance.
-    """
     user_id = int(get_jwt_identity())
     goal    = SavingsGoal.query.filter_by(id=goal_id, user_id=user_id, is_active=True).first()
     if not goal:
         return error("Goal not found.", 404)
-
     data   = request.get_json()
     amount = data.get("amount")
     note   = data.get("note", "").strip() or None
-
     if not amount or float(amount) <= 0:
         return error("A valid amount is required.")
-
-    contribution = GoalContribution(
-        goal_id    = goal_id,
-        user_id    = user_id,
-        amount     = float(amount),
-        note       = note,
-    )
+    contribution = GoalContribution(goal_id=goal_id, user_id=user_id, amount=float(amount), note=note)
     db.session.add(contribution)
     db.session.commit()
-
-    return success({
-        "message":      "Contribution added.",
-        "contribution": contribution.to_dict(),
-        "goal":         goal.to_dict(),
-    }, 201)
+    return success({"message": "Contribution added.", "contribution": contribution.to_dict(), "goal": goal.to_dict()}, 201)
 
 
 @api.route("/goals/<int:goal_id>/contributions", methods=["GET"])
 @jwt_required()
 def get_contributions(goal_id):
-    """
-    GET /api/goals/<id>/contributions
-    Returns all contributions for a specific goal with total contributed.
-    """
     user_id = int(get_jwt_identity())
     goal    = SavingsGoal.query.filter_by(id=goal_id, user_id=user_id).first()
     if not goal:
         return error("Goal not found.", 404)
-
-    contributions = (
-        GoalContribution.query
-        .filter_by(goal_id=goal_id)
-        .order_by(GoalContribution.date_added.desc())
-        .all()
-    )
-    return success({
-        "contributions":    [c.to_dict() for c in contributions],
-        "total_contributed": goal.total_contributed,
-    })
+    contributions = (GoalContribution.query.filter_by(goal_id=goal_id)
+                     .order_by(GoalContribution.date_added.desc()).all())
+    return success({"contributions": [c.to_dict() for c in contributions], "total_contributed": goal.total_contributed})
 
 
 @api.route("/contributions", methods=["GET"])
 @jwt_required()
 def get_all_contributions():
-    """
-    GET /api/contributions?month=4&year=2026
-    Returns all contributions across all goals for the given period.
-    Used by the transactions screen Savings tab.
-    """
     user_id = int(get_jwt_identity())
     month   = request.args.get("month", datetime.utcnow().month, type=int)
     year    = request.args.get("year",  datetime.utcnow().year,  type=int)
-
     contributions = GoalContribution.query.filter(
         GoalContribution.user_id == user_id,
         extract("month", GoalContribution.date_added) == month,
         extract("year",  GoalContribution.date_added) == year,
     ).order_by(GoalContribution.date_added.desc()).all()
-
-    # Attach goal name to each contribution for display in transactions
     result = []
     for c in contributions:
         d = c.to_dict()
         d["goal_name"] = c.goal.name if c.goal else "Unknown Goal"
         result.append(d)
-
     return success({"contributions": result})
 
 
