@@ -9,7 +9,7 @@ class AppConstants {
  //static const String baseUrl = 'http://10.0.2.2:5000/api';
 
 // Use this for production APK:
-static const String baseUrl = 'https://smart-finance-tracker-production.up.railway.app/api';
+static const String baseUrl = 'https://smart-finance-tracker-production-3503.up.railway.app/api';
 
   // ─── Expense Categories ─────────────────────────────────────────────────────
   // Must match the category values used in the Flask backend exactly.
