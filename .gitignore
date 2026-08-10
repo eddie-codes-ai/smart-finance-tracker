@@ -78,5 +78,3 @@ $RECYCLE.BIN/
 # Temporary files
 *.tmp
 *.temp
-# Backend startup script (contains credentials)
-backend/start_backend.ps1
