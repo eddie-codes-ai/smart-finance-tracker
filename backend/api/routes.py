@@ -33,6 +33,16 @@ def success(data: dict, status: int = 200):
 def error(message: str, status: int = 400):
     return jsonify({"status": "error", "message": message}), status
 
+MIN_PASSWORD_LENGTH = 6
+
+def password_problem(password: str) -> Optional[str]:
+    """Return an error message if the password is unacceptable, else None."""
+    if not password:
+        return "Password is required."
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+    return None
+
 def _verify_google_token(id_token_str: str) -> Optional[dict]:
     google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
     if not google_client_id:
@@ -68,8 +78,11 @@ def register():
     username = data.get("username", "").strip()
     password = data.get("password", "")
     email    = data.get("email", "").strip().lower() or None
-    if not username or not password:
-        return error("Username and password are required.")
+    if not username:
+        return error("Username is required.")
+    problem = password_problem(password)
+    if problem:
+        return error(problem)
     if User.query.filter_by(username=username).first():
         return error("Username already exists.", 409)
     if email and User.query.filter_by(email=email).first():
@@ -155,8 +168,9 @@ def reset_password_endpoint():
     new_password = data.get("new_password", "")
     if not all([email, code, new_password]):
         return error("Email, reset code, and new password are all required.")
-    if len(new_password) < 6:
-        return error("Password must be at least 6 characters long.")
+    problem = password_problem(new_password)
+    if problem:
+        return error(problem)
     user = User.query.filter_by(email=email).first()
     if not user or not user.reset_token:
         return error("Invalid or expired reset code.", 400)
@@ -200,8 +214,9 @@ def update_profile():
             return error("Current password is required to set a new password.")
         if not user.check_password(current_password):
             return error("Current password is incorrect.", 401)
-        if len(new_password) < 6:
-            return error("New password must be at least 6 characters long.")
+        problem = password_problem(new_password)
+        if problem:
+            return error(problem)
         user.set_password(new_password)
     db.session.commit()
     return success({"message": "Profile updated successfully.", "user": user.to_dict()})
