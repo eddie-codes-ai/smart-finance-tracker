@@ -134,6 +134,15 @@ class ApiClient {
     return {'month': month ?? now.month, 'year': year ?? now.year};
   }
 
+  /// Serializes a DateTime as an ISO 8601 string with no timezone designator.
+  ///
+  /// Timestamps round-trip through this app as plain wall-clock text: the
+  /// server stores naive datetimes, and every screen reads them back with
+  /// DateTime.parse(), which applies no conversion. Sending an offset would
+  /// put this one value in a different frame from every other row.
+  static String _isoLocal(DateTime moment) =>
+      (moment.isUtc ? moment.toLocal() : moment).toIso8601String();
+
   static String _monthYear(String? monthYear) {
     if (monthYear != null) return monthYear;
     final now = DateTime.now();
@@ -260,6 +269,23 @@ class ApiClient {
     return _send('GET', '/income', query: _period(month, year));
   }
 
+  /// Partial update — only the arguments you pass are changed. Anything left
+  /// null keeps its stored value, including date_added.
+  static Future<Map<String, dynamic>> updateIncome({
+    required int id,
+    double? amount,
+    String? incomeType,
+    String? description,
+    DateTime? dateAdded,
+  }) {
+    return _send('PUT', '/income/$id', body: {
+      if (amount != null) 'amount': amount,
+      if (incomeType != null) 'income_type': incomeType,
+      if (description != null) 'description': description,
+      if (dateAdded != null) 'date_added': _isoLocal(dateAdded),
+    });
+  }
+
   static Future<Map<String, dynamic>> deleteIncome(int id) {
     return _send('DELETE', '/income/$id');
   }
@@ -286,6 +312,25 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> getExpenses({int? month, int? year}) {
     return _send('GET', '/expenses', query: _period(month, year));
+  }
+
+  /// Partial update — only the arguments you pass are changed. Anything left
+  /// null keeps its stored value, including date_added.
+  static Future<Map<String, dynamic>> updateExpense({
+    required int id,
+    double? amount,
+    String? category,
+    String? description,
+    String? expenseType,
+    DateTime? dateAdded,
+  }) {
+    return _send('PUT', '/expenses/$id', body: {
+      if (amount != null) 'amount': amount,
+      if (category != null) 'category': category,
+      if (description != null) 'description': description,
+      if (expenseType != null) 'expense_type': expenseType,
+      if (dateAdded != null) 'date_added': _isoLocal(dateAdded),
+    });
   }
 
   static Future<Map<String, dynamic>> deleteExpense(int id) {

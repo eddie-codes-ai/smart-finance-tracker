@@ -74,6 +74,60 @@ class IncomeProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Update ──────────────────────────────────────────────────────────────────
+  /// Updates an existing income record in place. Only the arguments you pass
+  /// change; anything left null keeps its stored value, including the date.
+  ///
+  /// Returns true on success. On failure the record is left untouched on the
+  /// server and [errorMessage] explains why.
+  Future<bool> updateIncome({
+    required int id,
+    double? amount,
+    String? incomeType,
+    String? description,
+    DateTime? dateAdded,
+  }) async {
+    _setLoading(true);
+    try {
+      final data = await ApiClient.updateIncome(
+        id:          id,
+        amount:      amount,
+        incomeType:  incomeType,
+        description: description,
+        dateAdded:   dateAdded,
+      );
+
+      final updated = IncomeModel.fromJson(data['income']);
+      final index   = _records.indexWhere((r) => r.id == id);
+      if (index != -1) {
+        // Replace in place to keep list order; drop it if a changed date moved
+        // the record out of the month currently loaded.
+        if (_isInLoadedPeriod(updated)) {
+          _records[index] = updated;
+        } else {
+          _records.removeAt(index);
+        }
+      }
+      _errorMessage = null;
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to save changes. Check your connection.';
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// True if the record still falls inside the month/year this provider holds.
+  bool _isInLoadedPeriod(IncomeModel record) {
+    final date = DateTime.tryParse(record.dateAdded);
+    if (date == null) return true; // unparseable — keep it rather than hide it
+    return date.month == _month && date.year == _year;
+  }
+
   // ─── Delete ──────────────────────────────────────────────────────────────────
   /// Returns true on success.
   Future<bool> deleteIncome(int id) async {

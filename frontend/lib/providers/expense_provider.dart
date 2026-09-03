@@ -102,6 +102,64 @@ class ExpenseProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Update ──────────────────────────────────────────────────────────────────
+  /// Updates an existing expense in place. Only the arguments you pass change;
+  /// anything left null keeps its stored value, including the original date.
+  ///
+  /// Returns true on success. On failure the record is left untouched on the
+  /// server and [errorMessage] explains why — the caller must check the result
+  /// before telling the user the edit worked.
+  Future<bool> updateExpense({
+    required int id,
+    double? amount,
+    String? category,
+    String? description,
+    String? expenseType,
+    DateTime? dateAdded,
+  }) async {
+    _setLoading(true);
+    try {
+      final data = await ApiClient.updateExpense(
+        id:          id,
+        amount:      amount,
+        category:    category,
+        description: description,
+        expenseType: expenseType,
+        dateAdded:   dateAdded,
+      );
+
+      final updated = ExpenseModel.fromJson(data['expense']);
+      final index   = _records.indexWhere((r) => r.id == id);
+      if (index != -1) {
+        // Replace in place so the list keeps its order. If the date moved the
+        // record out of the month currently loaded, drop it instead — it
+        // belongs to a period this provider isn't showing.
+        if (_isInLoadedPeriod(updated)) {
+          _records[index] = updated;
+        } else {
+          _records.removeAt(index);
+        }
+      }
+      _errorMessage = null;
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to save changes. Check your connection.';
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// True if the record still falls inside the month/year this provider holds.
+  bool _isInLoadedPeriod(ExpenseModel record) {
+    final date = DateTime.tryParse(record.dateAdded);
+    if (date == null) return true; // unparseable — keep it rather than hide it
+    return date.month == _month && date.year == _year;
+  }
+
   // ─── Delete ──────────────────────────────────────────────────────────────────
   Future<bool> deleteExpense(int id) async {
     _setLoading(true);

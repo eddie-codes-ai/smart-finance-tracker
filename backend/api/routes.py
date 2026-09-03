@@ -2,7 +2,7 @@ import json as _json
 import os
 import random
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from flask import Blueprint, request, jsonify
@@ -12,7 +12,7 @@ from sqlalchemy import extract
 from models import (db, User, Income, Expense, Budget, SavingsGoal,
                     GoalContribution, HelbPlan, UserCategory, UserIncomeType,
                     DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_TYPES,
-                    DELETION_GRACE_HOURS)
+                    DELETION_GRACE_HOURS, EXPENSE_TYPES, RECURRENCE_CHOICES)
 from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.email_service import send_reset_email
@@ -63,6 +63,40 @@ def positive_amount(value) -> Optional[float]:
     if amount <= 0:
         return None
     return amount
+
+def parse_timestamp(value) -> Optional[datetime]:
+    """
+    Parse an ISO 8601 string into a naive datetime, or None if it isn't one.
+
+    Every timestamp in this database is stored naive, so an offset-aware value
+    is converted to UTC and stripped rather than stored in a second, silently
+    incompatible representation.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    # datetime.fromisoformat() cannot read a trailing "Z" before Python 3.11,
+    # and the Dockerfile pins 3.9.
+    if text.endswith(("Z", "z")):
+        text = text[:-1]
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(timezone.utc).replace(tzinfo=None)
+    return moment
+
+
+# How far ahead of "now" a client-supplied timestamp may sit before we reject
+# it. The slack absorbs device clock skew and the UTC/EAT offset that the app
+# does not yet account for.
+FUTURE_TIMESTAMP_SLACK = timedelta(hours=24)
+
+
+def is_future_timestamp(moment: datetime) -> bool:
+    return moment > datetime.utcnow() + FUTURE_TIMESTAMP_SLACK
+
 
 MIN_PASSWORD_LENGTH = 6
 
@@ -452,6 +486,49 @@ def delete_income(income_id):
     return success({"message": "Income deleted."})
 
 
+@api.route("/income/<int:income_id>", methods=["PUT"])
+@jwt_required()
+def update_income(income_id):
+    """
+    PUT /api/income/<id>
+
+    Partial update, same semantics as PUT /api/expenses/<id>.
+    """
+    user_id = int(get_jwt_identity())
+    record  = Income.query.filter_by(id=income_id, user_id=user_id).first()
+    if not record:
+        return error("Income record not found.", 404)
+
+    data = body()
+
+    if "amount" in data:
+        amount = positive_amount(data.get("amount"))
+        if amount is None:
+            return error("A valid amount is required.")
+        record.amount = amount
+
+    if "income_type" in data:
+        # Left unchecked for the same reason as expense category above — a user
+        # may delete a custom income type that existing records still name.
+        income_type = (data.get("income_type") or "").strip()
+        if not income_type:
+            return error("Income type cannot be empty.")
+        record.income_type = income_type
+
+    if "description" in data:
+        record.description = (data.get("description") or "").strip()
+
+    if "date_added" in data:
+        moment = parse_timestamp(data.get("date_added"))
+        if moment is None:
+            return error("Invalid date_added. Use an ISO 8601 timestamp.")
+        if is_future_timestamp(moment):
+            return error("date_added cannot be in the future.")
+        record.date_added = moment
+
+    db.session.commit()
+    return success({"message": "Income updated.", "income": record.to_dict()})
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # EXPENSES
@@ -469,9 +546,13 @@ def add_expense():
     recurrence_interval = data.get("recurrence_interval", None)
     if amount is None:
         return error("A valid amount is required.")
+    if expense_type not in EXPENSE_TYPES:
+        return error(f"expense_type must be one of: {', '.join(EXPENSE_TYPES)}.")
+    if recurrence_interval not in (None, "") and recurrence_interval not in RECURRENCE_CHOICES:
+        return error(f"recurrence_interval must be one of: {', '.join(RECURRENCE_CHOICES)}.")
     expense = Expense(user_id=user_id, amount=amount, category=category,
                       description=description, expense_type=expense_type,
-                      recurrence_interval=recurrence_interval)
+                      recurrence_interval=recurrence_interval or None)
     db.session.add(expense)
     db.session.commit()
     return success({"message": "Expense added.", "expense": expense.to_dict()}, 201)
@@ -502,6 +583,69 @@ def delete_expense(expense_id):
     db.session.commit()
     return success({"message": "Expense deleted."})
 
+
+@api.route("/expenses/<int:expense_id>", methods=["PUT"])
+@jwt_required()
+def update_expense(expense_id):
+    """
+    PUT /api/expenses/<id>
+
+    Partial update — only the fields present in the body are changed, matching
+    the convention already used by PUT /auth/profile. date_added is preserved
+    unless explicitly supplied, so correcting an amount never moves a
+    transaction to today.
+    """
+    user_id = int(get_jwt_identity())
+    record  = Expense.query.filter_by(id=expense_id, user_id=user_id).first()
+    if not record:
+        return error("Expense record not found.", 404)
+
+    data = body()
+
+    if "amount" in data:
+        amount = positive_amount(data.get("amount"))
+        if amount is None:
+            return error("A valid amount is required.")
+        record.amount = amount
+
+    if "category" in data:
+        # Not checked against the category list: deleting a custom category
+        # leaves existing records pointing at it, and rejecting those would
+        # make them permanently uneditable.
+        category = (data.get("category") or "").strip()
+        if not category:
+            return error("Category cannot be empty.")
+        record.category = category
+
+    if "description" in data:
+        record.description = (data.get("description") or "").strip()
+
+    if "expense_type" in data:
+        expense_type = (data.get("expense_type") or "").strip()
+        if expense_type not in EXPENSE_TYPES:
+            return error(f"expense_type must be one of: {', '.join(EXPENSE_TYPES)}.")
+        record.expense_type = expense_type
+
+    if "recurrence_interval" in data:
+        interval = data.get("recurrence_interval")
+        if interval not in (None, "") and interval not in RECURRENCE_CHOICES:
+            return error(f"recurrence_interval must be one of: {', '.join(RECURRENCE_CHOICES)}.")
+        record.recurrence_interval = interval or None
+    elif record.expense_type != "recurring":
+        # Switching a recurring expense to any other type would otherwise leave
+        # a stale interval behind. Enforced here so no client has to remember.
+        record.recurrence_interval = None
+
+    if "date_added" in data:
+        moment = parse_timestamp(data.get("date_added"))
+        if moment is None:
+            return error("Invalid date_added. Use an ISO 8601 timestamp.")
+        if is_future_timestamp(moment):
+            return error("date_added cannot be in the future.")
+        record.date_added = moment
+
+    db.session.commit()
+    return success({"message": "Expense updated.", "expense": record.to_dict()})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
