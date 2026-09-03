@@ -4,8 +4,11 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_migrate import Migrate
 from models import db
 from api.routes import api
+
+migrate = Migrate()
 
 # ── Load .env file automatically ─────────────────────────────────────────────
 try:
@@ -32,6 +35,7 @@ def create_app():
 
     # ── Extensions ────────────────────────────────────────────────────────────
     db.init_app(app)
+    migrate.init_app(app, db)
     _configure_jwt(JWTManager(app))
     CORS(app)
 
@@ -41,10 +45,11 @@ def create_app():
     # ── Error handlers ────────────────────────────────────────────────────────
     _register_error_handlers(app)
 
-    # ── Create tables on first run ────────────────────────────────────────────
-    with app.app_context():
-        db.create_all()
-
+    # Schema is owned by Alembic, not by db.create_all(). create_all() ran in
+    # every Gunicorn worker on every boot, and it only ever adds missing
+    # tables — never a missing column — so any model change after the first
+    # deploy silently never reached an existing database. Run migrations with:
+    #     flask db upgrade
     return app
 
 

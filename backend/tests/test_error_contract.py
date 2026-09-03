@@ -28,6 +28,8 @@ _DB_PATH = os.path.join(tempfile.mkdtemp(prefix="sft-tests-"), "test.db")
 os.environ["DATABASE_URL"] = "sqlite:///" + _DB_PATH.replace(os.sep, "/")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-not-used-in-production")
 
+from flask_migrate import upgrade  # noqa: E402
+
 from app import create_app  # noqa: E402
 
 
@@ -36,6 +38,9 @@ def _client():
     # Exercise the error handlers rather than letting Flask re-raise.
     app.config["PROPAGATE_EXCEPTIONS"] = False
     app.config["TESTING"] = True
+    # The schema comes from the migrations now, not db.create_all().
+    with app.app_context():
+        upgrade()
     return app.test_client()
 
 

@@ -29,6 +29,8 @@ _DB_PATH = os.path.join(tempfile.mkdtemp(prefix="sft-tz-"), "test.db")
 os.environ["DATABASE_URL"] = "sqlite:///" + _DB_PATH.replace(os.sep, "/")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-not-used-in-production")
 
+from flask_migrate import upgrade                                     # noqa: E402
+
 from app import create_app                                            # noqa: E402
 from app_time import (APP_TIMEZONE, iso_utc, local_date_of,           # noqa: E402
                       month_range_utc, to_app_tz)
@@ -38,6 +40,9 @@ from services.analysis_service import (_calculate_overspent_days,     # noqa: E4
 _app = create_app()
 _app.config["PROPAGATE_EXCEPTIONS"] = False
 _app.config["TESTING"] = True
+# The schema comes from the migrations now, not db.create_all().
+with _app.app_context():
+    upgrade()
 CLIENT = _app.test_client()
 
 

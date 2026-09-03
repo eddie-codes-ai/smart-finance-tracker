@@ -9,6 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Bind explicitly: gunicorn defaults to 127.0.0.1:8000, which ignores the
-# $PORT the platform assigns and is unreachable from outside the container.
-CMD gunicorn --bind "0.0.0.0:${PORT:-5000}" "app:create_app()"
+ENV FLASK_APP=app:create_app
+
+# Apply migrations before serving: the schema is owned by Alembic now, not by
+# db.create_all(). Bind explicitly too — gunicorn otherwise defaults to
+# 127.0.0.1:8000, ignoring the $PORT the platform assigns, which leaves the
+# container unreachable from outside.
+CMD flask db upgrade && gunicorn --bind "0.0.0.0:${PORT:-5000}" "app:create_app()"
