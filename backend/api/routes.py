@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 from app_time import (DEFAULT_TIMEZONE_NAME, is_valid_timezone, known_timezones,
@@ -125,17 +125,53 @@ def password_problem(password: str) -> Optional[str]:
         return f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
     return None
 
-def _verify_google_token(id_token_str: str) -> Optional[dict]:
+# Why _verify_google_token returned None, so the caller can tell a broken server
+# apart from a bad token. Collapsing these into a bare `return None` is what let
+# a missing google-auth dependency report itself as "Invalid or expired Google
+# token" — blaming the user's credentials for a server-side fault.
+GOOGLE_NOT_CONFIGURED = "not_configured"
+GOOGLE_BAD_TOKEN      = "bad_token"
+
+
+def _verify_google_token(id_token_str: str):
+    """
+    Verify a Google ID token.
+
+    Returns (profile, None) on success, or (None, reason) on failure, where
+    reason is GOOGLE_NOT_CONFIGURED for a server problem the user cannot act on
+    and GOOGLE_BAD_TOKEN for a token that is genuinely invalid or expired.
+    """
     google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
     if not google_client_id:
-        return None
+        current_app.logger.error(
+            "Google sign-in attempted but GOOGLE_CLIENT_ID is not set.")
+        return None, GOOGLE_NOT_CONFIGURED
+
     try:
         from google.oauth2 import id_token as g_id_token
         from google.auth.transport import requests as g_requests
-        idinfo = g_id_token.verify_oauth2_token(id_token_str, g_requests.Request(), google_client_id)
-        return {"google_id": idinfo["sub"], "email": idinfo.get("email", ""), "name": idinfo.get("name", "")}
+    except ImportError:
+        current_app.logger.exception(
+            "google-auth is not installed; add it to requirements.txt.")
+        return None, GOOGLE_NOT_CONFIGURED
+
+    try:
+        idinfo = g_id_token.verify_oauth2_token(
+            id_token_str, g_requests.Request(), google_client_id)
+    except ValueError as e:
+        # Wrong audience, bad signature, expired — all genuinely the token.
+        current_app.logger.warning("Google token rejected: %s", e)
+        return None, GOOGLE_BAD_TOKEN
     except Exception:
-        return None
+        # Network failure reaching Google's certs, and anything else unforeseen.
+        current_app.logger.exception("Google token verification failed.")
+        return None, GOOGLE_NOT_CONFIGURED
+
+    return {
+        "google_id": idinfo["sub"],
+        "email":     idinfo.get("email", ""),
+        "name":      idinfo.get("name", ""),
+    }, None
 
 
 def _purge_expired_deletions():
@@ -206,7 +242,12 @@ def google_signin():
     id_token_str = data.get("id_token", "").strip()
     if not id_token_str:
         return error("Google ID token is required.")
-    google_info = _verify_google_token(id_token_str)
+    google_info, failure = _verify_google_token(id_token_str)
+    if failure == GOOGLE_NOT_CONFIGURED:
+        # The user can do nothing about this; say so rather than blaming their
+        # credentials, and use a status that reads as "our fault".
+        return error("Google sign-in is not available right now. "
+                     "Please sign in with your username and password.", 503)
     if not google_info:
         return error("Invalid or expired Google token.", 401)
     google_id = google_info["google_id"]

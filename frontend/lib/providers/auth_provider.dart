@@ -12,8 +12,11 @@ import 'package:frontend/models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
 
+  // Must match android/app/src/main/res/values/strings.xml exactly, and the
+  // GOOGLE_CLIENT_ID the server verifies against. This carried a trailing dot
+  // that the other two do not, which made the audience check fail.
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: '866645622012-5km05daf6mniv6f5i5e1p5tq2be3m204.apps.googleusercontent.com.',
+    serverClientId: '866645622012-5km05daf6mniv6f5i5e1p5tq2be3m204.apps.googleusercontent.com',
   );
 
   // ── State ─────────────────────────────────────────────────────────────────
