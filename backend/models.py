@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -43,8 +44,22 @@ class User(db.Model):
     timezone              = db.Column(db.String(64), nullable=False,
                                       default=DEFAULT_TIMEZONE_NAME,
                                       server_default=DEFAULT_TIMEZONE_NAME)
-    reset_token           = db.Column(db.String(10),               nullable=True)
+    # A scrypt hash of the reset code, never the code itself: the column used to
+    # hold the six digits in plaintext, so any read of this table was an
+    # account takeover. Wide enough for the hash format werkzeug produces.
+    reset_token           = db.Column(db.String(255),              nullable=True)
     reset_token_expiry    = db.Column(db.DateTime,                  nullable=True)
+
+    # Wrong guesses against the current reset code. The code is only six digits,
+    # so a cap on attempts - not the code's own entropy - is what actually
+    # stops it being guessed.
+    reset_attempts        = db.Column(db.Integer, nullable=False,
+                                      default=0, server_default="0")
+
+    # Consecutive failed password logins, and the time password login reopens.
+    failed_login_attempts = db.Column(db.Integer, nullable=False,
+                                      default=0, server_default="0")
+    locked_until          = db.Column(db.DateTime,                  nullable=True)
     deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
     created_at            = db.Column(db.DateTime, default=utc_now, nullable=False)
 
@@ -63,6 +78,58 @@ class User(db.Model):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+    # ── Password reset codes ─────────────────────────────────────────────────
+
+    def issue_reset_code(self, ttl_minutes: int) -> str:
+        """
+        Mint a fresh reset code, store only its hash, and return the plaintext
+        for the email.
+
+        secrets, not random: random is a Mersenne Twister, whose future output
+        is derivable from enough past output, which is disqualifying for
+        anything that grants account access.
+        """
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        self.reset_token        = generate_password_hash(code)
+        self.reset_token_expiry = utc_now() + timedelta(minutes=ttl_minutes)
+        self.reset_attempts     = 0
+        return code
+
+    def clear_reset_code(self):
+        self.reset_token        = None
+        self.reset_token_expiry = None
+        self.reset_attempts     = 0
+
+    def check_reset_code(self, code: str) -> bool:
+        """Constant-time comparison against the stored hash."""
+        if not self.reset_token:
+            return False
+        return check_password_hash(self.reset_token, code)
+
+    # ── Login throttling ─────────────────────────────────────────────────────
+
+    @property
+    def is_locked_out(self) -> bool:
+        return self.locked_until is not None and self.locked_until > utc_now()
+
+    def register_failed_login(self, max_attempts: int, lockout_minutes: int):
+        """
+        Count a failed password attempt and lock the account once the budget is
+        spent.
+
+        The threshold is deliberately generous. Locking after two or three
+        failures would let anyone who knows a username deny that person access
+        at will, which trades one attack for another.
+        """
+        self.failed_login_attempts = (self.failed_login_attempts or 0) + 1
+        if self.failed_login_attempts >= max_attempts:
+            self.locked_until          = utc_now() + timedelta(minutes=lockout_minutes)
+            self.failed_login_attempts = 0
+
+    def clear_login_failures(self):
+        self.failed_login_attempts = 0
+        self.locked_until          = None
 
     @property
     def is_pending_deletion(self) -> bool:

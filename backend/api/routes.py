@@ -1,6 +1,5 @@
 import json as _json
 import os
-import random
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -117,6 +116,16 @@ def is_future_timestamp(moment: datetime) -> bool:
 
 MIN_PASSWORD_LENGTH = 6
 
+# A six-digit code is only a million possibilities, so what actually protects it
+# is the attempt budget, not its own entropy. Five wrong guesses destroys it.
+RESET_CODE_TTL_MINUTES = 15          # what the email has always claimed
+MAX_RESET_ATTEMPTS     = 5
+
+# Login throttling. Generous on purpose: a low threshold would let anyone who
+# knows a username lock that person out at will.
+MAX_LOGIN_ATTEMPTS   = 10
+LOGIN_LOCKOUT_MINUTES = 15
+
 def password_problem(password: str) -> Optional[str]:
     """Return an error message if the password is unacceptable, else None."""
     if not password:
@@ -225,8 +234,23 @@ def login():
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user = User.query.filter_by(username=username).first()
+
+    if user and user.is_locked_out:
+        # Say so plainly. Hiding it behind "invalid password" would leave
+        # someone who simply mistyped retrying a password that is actually
+        # correct, with no idea why it keeps failing.
+        return error(
+            f"Too many failed attempts. Try again in {LOGIN_LOCKOUT_MINUTES} minutes, "
+            "or reset your password.", 429)
+
     if not user or not user.check_password(password):
+        if user:
+            user.register_failed_login(MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MINUTES)
+            db.session.commit()
         return error("Invalid username or password.", 401)
+
+    user.clear_login_failures()
+    db.session.commit()
     token = create_access_token(identity=str(user.id))
     return success({
         "token":            token,
@@ -280,11 +304,15 @@ def forgot_password():
         return error("Email address is required.")
     user = User.query.filter_by(email=email).first()
     if user:
-        code                    = f"{random.randint(0, 999999):06d}"
-        user.reset_token        = code
-        user.reset_token_expiry = utc_now() + timedelta(minutes=60)
+        code = user.issue_reset_code(RESET_CODE_TTL_MINUTES)
         db.session.commit()
-        send_reset_email(email, user.username, code)
+        result = send_reset_email(email, user.username, code)
+        if not result.get("success"):
+            # Logged, not returned: answering differently when the send fails
+            # would tell an attacker which addresses are registered, which is
+            # exactly what the deliberately vague reply below prevents.
+            current_app.logger.error("Reset email to %s failed: %s",
+                                     email, result.get("error"))
     return success({"message": "If that email is registered, a reset code has been sent. Check your inbox and spam folder."})
 
 
@@ -302,13 +330,27 @@ def reset_password_endpoint():
     user = User.query.filter_by(email=email).first()
     if not user or not user.reset_token:
         return error("Invalid or expired reset code.", 400)
-    if user.reset_token != code:
-        return error("Incorrect reset code.", 400)
-    if user.reset_token_expiry < utc_now():
+
+    if user.reset_token_expiry is None or user.reset_token_expiry < utc_now():
+        user.clear_reset_code()
+        db.session.commit()
         return error("Reset code has expired. Please request a new one.", 400)
+
+    if not user.check_reset_code(code):
+        user.reset_attempts = (user.reset_attempts or 0) + 1
+        remaining = MAX_RESET_ATTEMPTS - user.reset_attempts
+        if remaining <= 0:
+            # Burn the code rather than counting forever. Without this the six
+            # digits could simply be enumerated.
+            user.clear_reset_code()
+            db.session.commit()
+            return error("Too many incorrect attempts. Please request a new reset code.", 400)
+        db.session.commit()
+        return error(f"Incorrect reset code. {remaining} attempt(s) remaining.", 400)
+
     user.set_password(new_password)
-    user.reset_token        = None
-    user.reset_token_expiry = None
+    user.clear_reset_code()
+    user.clear_login_failures()   # a successful reset should not leave them locked out
     db.session.commit()
     return success({"message": "Password reset successfully. You can now log in with your new password."})
 
