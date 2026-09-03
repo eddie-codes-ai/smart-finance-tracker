@@ -21,9 +21,6 @@ def create_app():
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-    # ── DEBUG — remove this line once the DB issue is resolved ────────────────
-    print(f"CONNECTING TO: {database_url[:60]}")
-
     app.config["SQLALCHEMY_DATABASE_URI"]        = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET_KEY"]                 = os.environ.get(
