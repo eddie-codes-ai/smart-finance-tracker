@@ -9,4 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD gunicorn "app:create_app()"
+# Bind explicitly: gunicorn defaults to 127.0.0.1:8000, which ignores the
+# $PORT the platform assigns and is unreachable from outside the container.
+CMD gunicorn --bind "0.0.0.0:${PORT:-5000}" "app:create_app()"

@@ -1,0 +1,27 @@
+# Keep the build context small and free of anything secret or machine-local.
+# Without this the whole local virtualenv is shipped to the daemon.
+
+venv/
+.venv/
+env/
+
+__pycache__/
+*.py[cod]
+
+# Local SQLite database and Flask instance folder
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets never belong in an image
+.env
+start_backend.ps1
+
+# Not needed at runtime
+tests/
+migrations/README
+*.md
+
+.git/
+.gitignore
