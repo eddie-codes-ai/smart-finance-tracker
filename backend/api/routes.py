@@ -33,6 +33,37 @@ def success(data: dict, status: int = 200):
 def error(message: str, status: int = 400):
     return jsonify({"status": "error", "message": message}), status
 
+def body() -> dict:
+    """
+    Request JSON as a dict, never None.
+
+    A plain request.get_json() raises on a missing or malformed body, which
+    used to surface as an HTML 500. Returning {} lets each route report the
+    specific field it needs instead.
+    """
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+def positive_amount(value) -> Optional[float]:
+    """
+    Coerce a client-supplied amount to a positive float, or None if it isn't one.
+
+    Guards the bare float(value) calls that returned a 500 for any non-numeric
+    input. Also rejects NaN and infinity, which float() accepts happily and
+    which poison every downstream total.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+    if amount != amount or amount in (float("inf"), float("-inf")):
+        return None
+    if amount <= 0:
+        return None
+    return amount
+
 MIN_PASSWORD_LENGTH = 6
 
 def password_problem(password: str) -> Optional[str]:
@@ -74,7 +105,7 @@ def _purge_expired_deletions():
 
 @api.route("/auth/register", methods=["POST"])
 def register():
-    data     = request.get_json()
+    data     = body()
     username = data.get("username", "").strip()
     password = data.get("password", "")
     email    = data.get("email", "").strip().lower() or None
@@ -98,7 +129,7 @@ def register():
 @api.route("/auth/login", methods=["POST"])
 def login():
     _purge_expired_deletions()
-    data     = request.get_json()
+    data     = body()
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user = User.query.filter_by(username=username).first()
@@ -115,7 +146,7 @@ def login():
 
 @api.route("/auth/google", methods=["POST"])
 def google_signin():
-    data         = request.get_json()
+    data         = body()
     id_token_str = data.get("id_token", "").strip()
     if not id_token_str:
         return error("Google ID token is required.")
@@ -146,7 +177,7 @@ def google_signin():
 
 @api.route("/auth/forgot-password", methods=["POST"])
 def forgot_password():
-    data  = request.get_json()
+    data  = body()
     email = data.get("email", "").strip().lower()
     if not email:
         return error("Email address is required.")
@@ -162,7 +193,7 @@ def forgot_password():
 
 @api.route("/auth/reset-password", methods=["POST"])
 def reset_password_endpoint():
-    data         = request.get_json()
+    data         = body()
     email        = data.get("email", "").strip().lower()
     code         = data.get("code", "").strip()
     new_password = data.get("new_password", "")
@@ -190,7 +221,7 @@ def reset_password_endpoint():
 def update_profile():
     user_id          = int(get_jwt_identity())
     user             = User.query.get(user_id)
-    data             = request.get_json() or {}
+    data             = body()
     new_username     = data.get("username", "").strip() or None
     new_email        = data.get("email", "").strip().lower() or None
     new_password     = data.get("new_password", "") or None
@@ -227,7 +258,7 @@ def update_profile():
 def request_account_deletion():
     user_id  = int(get_jwt_identity())
     user     = User.query.get(user_id)
-    data     = request.get_json() or {}
+    data     = body()
     password = data.get("password", "")
     if not password:
         return error("Password is required to delete your account.")
@@ -273,7 +304,7 @@ def get_categories():
 @jwt_required()
 def add_category():
     user_id = int(get_jwt_identity())
-    data    = request.get_json()
+    data    = body()
     name    = data.get("name", "").strip()
     if not name:
         return error("Category name is required.")
@@ -336,7 +367,7 @@ def add_income_type():
     Adds a custom income type for this user.
     """
     user_id = int(get_jwt_identity())
-    data    = request.get_json()
+    data    = body()
     name    = data.get("name", "").strip().lower()
     if not name:
         return error("Income type name is required.")
@@ -383,13 +414,13 @@ def delete_income_type(name: str):
 @jwt_required()
 def add_income():
     user_id = int(get_jwt_identity())
-    data    = request.get_json()
-    amount      = data.get("amount")
+    data    = body()
+    amount      = positive_amount(data.get("amount"))
     income_type = data.get("income_type", "monthly")
     description = data.get("description", "")
-    if not amount or float(amount) <= 0:
+    if amount is None:
         return error("A valid amount is required.")
-    income = Income(user_id=user_id, amount=float(amount), income_type=income_type, description=description)
+    income = Income(user_id=user_id, amount=amount, income_type=income_type, description=description)
     db.session.add(income)
     db.session.commit()
     return success({"message": "Income added.", "income": income.to_dict()}, 201)
@@ -421,6 +452,7 @@ def delete_income(income_id):
     return success({"message": "Income deleted."})
 
 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # EXPENSES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -429,15 +461,15 @@ def delete_income(income_id):
 @jwt_required()
 def add_expense():
     user_id = int(get_jwt_identity())
-    data    = request.get_json()
-    amount              = data.get("amount")
+    data    = body()
+    amount              = positive_amount(data.get("amount"))
     category            = data.get("category", "Other")
     description         = data.get("description", "")
     expense_type        = data.get("expense_type", "daily")
     recurrence_interval = data.get("recurrence_interval", None)
-    if not amount or float(amount) <= 0:
+    if amount is None:
         return error("A valid amount is required.")
-    expense = Expense(user_id=user_id, amount=float(amount), category=category,
+    expense = Expense(user_id=user_id, amount=amount, category=category,
                       description=description, expense_type=expense_type,
                       recurrence_interval=recurrence_interval)
     db.session.add(expense)
@@ -471,6 +503,7 @@ def delete_expense(expense_id):
     return success({"message": "Expense deleted."})
 
 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUDGETS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -479,17 +512,17 @@ def delete_expense(expense_id):
 @jwt_required()
 def set_budget():
     user_id    = int(get_jwt_identity())
-    data       = request.get_json()
+    data       = body()
     category   = data.get("category")
-    limit      = data.get("limit")
+    limit      = positive_amount(data.get("limit"))
     month_year = data.get("month_year", datetime.utcnow().strftime("%Y-%m"))
-    if not category or not limit or float(limit) <= 0:
+    if not category or limit is None:
         return error("Category and a valid limit are required.")
     existing = Budget.query.filter_by(user_id=user_id, category=category, month_year=month_year).first()
     if existing:
-        existing.limit = float(limit)
+        existing.limit = limit
     else:
-        db.session.add(Budget(user_id=user_id, category=category, limit=float(limit), month_year=month_year))
+        db.session.add(Budget(user_id=user_id, category=category, limit=limit, month_year=month_year))
     db.session.commit()
     return success({"message": "Budget saved."}, 201)
 
@@ -511,11 +544,11 @@ def get_budgets():
 @jwt_required()
 def add_goal():
     user_id      = int(get_jwt_identity())
-    data         = request.get_json()
+    data         = body()
     name         = data.get("name", "My Goal")
-    goal_amount  = data.get("goal_amount")
+    goal_amount  = positive_amount(data.get("goal_amount"))
     due_date_str = data.get("due_date")
-    if not goal_amount or float(goal_amount) <= 0:
+    if goal_amount is None:
         return error("A valid goal amount is required.")
     if not due_date_str:
         return error("A due date is required.")
@@ -523,7 +556,7 @@ def add_goal():
         due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
     except ValueError:
         return error("Invalid due_date format. Use YYYY-MM-DD.")
-    goal = SavingsGoal(user_id=user_id, name=name, goal_amount=float(goal_amount), due_date=due_date)
+    goal = SavingsGoal(user_id=user_id, name=name, goal_amount=goal_amount, due_date=due_date)
     db.session.add(goal)
     db.session.commit()
     return success({"message": "Goal created.", "goal": goal.to_dict()}, 201)
@@ -556,12 +589,12 @@ def add_contribution(goal_id):
     goal    = SavingsGoal.query.filter_by(id=goal_id, user_id=user_id, is_active=True).first()
     if not goal:
         return error("Goal not found.", 404)
-    data   = request.get_json()
-    amount = data.get("amount")
-    note   = data.get("note", "").strip() or None
-    if not amount or float(amount) <= 0:
+    data   = body()
+    amount = positive_amount(data.get("amount"))
+    note   = (data.get("note") or "").strip() or None
+    if amount is None:
         return error("A valid amount is required.")
-    contribution = GoalContribution(goal_id=goal_id, user_id=user_id, amount=float(amount), note=note)
+    contribution = GoalContribution(goal_id=goal_id, user_id=user_id, amount=amount, note=note)
     db.session.add(contribution)
     db.session.commit()
     return success({"message": "Contribution added.", "contribution": contribution.to_dict(), "goal": goal.to_dict()}, 201)
@@ -606,7 +639,7 @@ def get_all_contributions():
 @jwt_required()
 def analyze():
     user_id = int(get_jwt_identity())
-    data    = request.get_json() or {}
+    data    = body()
     month   = data.get("month", datetime.utcnow().month)
     year    = data.get("year",  datetime.utcnow().year)
     payload = compute_analysis_payload(user_id, month, year)
@@ -651,7 +684,7 @@ def analyze():
 @jwt_required()
 def guardian_link():
     user_id      = int(get_jwt_identity())
-    data         = request.get_json()
+    data         = body()
     phone_number = data.get("phone_number", "").strip()
     if not phone_number:
         return error("Phone number is required.")
@@ -686,7 +719,7 @@ def guardian_notify():
     guardian = get_guardian(user_id)
     if not guardian:
         return error("No active guardian linked.", 404)
-    data  = request.get_json() or {}
+    data  = body()
     month = data.get("month", datetime.utcnow().month)
     year  = data.get("year",  datetime.utcnow().year)
     payload     = compute_analysis_payload(user_id, month, year)
@@ -726,15 +759,15 @@ def get_helb_plan():
 @jwt_required()
 def save_helb_plan():
     user_id       = int(get_jwt_identity())
-    data          = request.get_json()
+    data          = body()
     semester_name = data.get("semester_name", "").strip()
-    helb_amount   = data.get("helb_amount")
+    helb_amount   = positive_amount(data.get("helb_amount"))
     start_date_s  = data.get("start_date")
     end_date_s    = data.get("end_date")
     allocations   = data.get("allocations", {})
     if not semester_name:
         return error("Semester name is required.")
-    if not helb_amount or float(helb_amount) <= 0:
+    if helb_amount is None:
         return error("A valid HELB amount is required.")
     if not start_date_s or not end_date_s:
         return error("Start date and end date are required.")
@@ -748,14 +781,14 @@ def save_helb_plan():
     plan = HelbPlan.query.filter_by(user_id=user_id).first()
     if plan:
         plan.semester_name = semester_name
-        plan.helb_amount   = float(helb_amount)
+        plan.helb_amount   = helb_amount
         plan.start_date    = start_date
         plan.end_date      = end_date
         plan.allocations   = _json.dumps(allocations)
         plan.updated_at    = datetime.utcnow()
     else:
         plan = HelbPlan(user_id=user_id, semester_name=semester_name,
-                        helb_amount=float(helb_amount), start_date=start_date,
+                        helb_amount=helb_amount, start_date=start_date,
                         end_date=end_date, allocations=_json.dumps(allocations))
         db.session.add(plan)
     db.session.commit()

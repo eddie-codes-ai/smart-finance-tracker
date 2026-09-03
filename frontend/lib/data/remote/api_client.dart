@@ -1,7 +1,12 @@
 // lib/data/remote/api_client.dart
 // All methods are STATIC — providers call them as ApiClient.methodName()
-// ApiException is defined here for use in providers.
+//
+// Every request goes through _send(), which is the only place that talks to
+// http. It checks the status code, applies a timeout, and throws ApiException
+// carrying the server's own message. Callers get a decoded body on success or
+// an exception on failure — never a decoded error page that looks like success.
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:frontend/data/local/secure_storage.dart';
@@ -11,20 +16,128 @@ import 'package:frontend/core/constants.dart';
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
-  ApiException(this.message, {this.statusCode});
+
+  /// True when the server said the JWT expired, so the app should sign out
+  /// and send the user back to login rather than showing an error.
+  final bool sessionExpired;
+
+  ApiException(this.message, {this.statusCode, this.sessionExpired = false});
+
+  /// 401/403 — the request was rejected because of who (or whether) we are.
+  bool get isAuthFailure => statusCode == 401 || statusCode == 403;
 
   @override
   String toString() => message;
 }
 
 class ApiClient {
+  /// Long enough for a cold start on Railway's free tier, short enough that a
+  /// dead connection doesn't hang the UI forever.
+  static const Duration _timeout = Duration(seconds: 30);
 
-  static Future<Map<String, String>> _authHeaders() async {
-    final token = await SecureStorage.getToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+  static Future<Map<String, String>> _headers({bool authenticated = true}) async {
+    final headers = {'Content-Type': 'application/json'};
+    if (authenticated) {
+      final token = await SecureStorage.getToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    return headers;
+  }
+
+  /// The single request path for the whole app.
+  ///
+  /// Throws [ApiException] on timeout, transport failure, a non-2xx status, or
+  /// a body that isn't JSON. Returns the decoded body on success.
+  static Future<Map<String, dynamic>> _send(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? query,
+    bool authenticated = true,
+  }) async {
+    var uri = Uri.parse('${AppConstants.baseUrl}$path');
+    if (query != null && query.isNotEmpty) {
+      uri = uri.replace(
+        queryParameters: query.map((k, v) => MapEntry(k, '$v')),
+      );
+    }
+
+    final headers = await _headers(authenticated: authenticated);
+    final encoded = body == null ? null : jsonEncode(body);
+
+    http.Response response;
+    try {
+      final Future<http.Response> request;
+      switch (method) {
+        case 'GET':
+          request = http.get(uri, headers: headers);
+          break;
+        case 'POST':
+          request = http.post(uri, headers: headers, body: encoded);
+          break;
+        case 'PUT':
+          request = http.put(uri, headers: headers, body: encoded);
+          break;
+        case 'DELETE':
+          request = http.delete(uri, headers: headers, body: encoded);
+          break;
+        default:
+          throw ArgumentError('Unsupported HTTP method: $method');
+      }
+      response = await request.timeout(_timeout);
+    } on TimeoutException {
+      throw ApiException('The server took too long to respond. Please try again.');
+    } on http.ClientException catch (e) {
+      throw ApiException('Could not reach the server. Check your connection.\n${e.message}');
+    } catch (e) {
+      throw ApiException('Could not reach the server. Check your connection.');
+    }
+
+    final decoded = _decode(response);
+    final status = response.statusCode;
+
+    if (status >= 200 && status < 300) return decoded;
+
+    throw ApiException(
+      decoded['message'] as String? ?? _fallbackMessage(status),
+      statusCode: status,
+      sessionExpired: decoded['token_expired'] == true,
+    );
+  }
+
+  /// Decodes a JSON object body, tolerating an empty or non-JSON response so
+  /// that the status code still decides the outcome.
+  static Map<String, dynamic> _decode(http.Response response) {
+    if (response.body.isEmpty) return <String, dynamic>{};
+    try {
+      final parsed = jsonDecode(response.body);
+      return parsed is Map<String, dynamic> ? parsed : <String, dynamic>{};
+    } on FormatException {
+      return <String, dynamic>{};
+    }
+  }
+
+  static String _fallbackMessage(int status) {
+    if (status == 401) return 'Your session has expired. Please sign in again.';
+    if (status == 403) return 'You do not have permission to do that.';
+    if (status == 404) return 'That record no longer exists.';
+    if (status == 409) return 'That already exists.';
+    if (status >= 500) return 'The server had a problem. Please try again shortly.';
+    return 'Request failed ($status).';
+  }
+
+  // Month/year query shared by every period-scoped GET.
+  static Map<String, dynamic> _period(int? month, int? year) {
+    final now = DateTime.now();
+    return {'month': month ?? now.month, 'year': year ?? now.year};
+  }
+
+  static String _monthYear(String? monthYear) {
+    if (monthYear != null) return monthYear;
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}';
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -35,53 +148,41 @@ class ApiClient {
     String username,
     String password, {
     String? email,
-  }) async {
-    final body = <String, dynamic>{'username': username, 'password': password};
-    if (email != null && email.isNotEmpty) body['email'] = email;
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/auth/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
-    return jsonDecode(response.body);
+  }) {
+    return _send('POST', '/auth/register', authenticated: false, body: {
+      'username': username,
+      'password': password,
+      if (email != null && email.isNotEmpty) 'email': email,
+    });
   }
 
-  static Future<Map<String, dynamic>> login(String username, String password) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> login(String username, String password) {
+    return _send('POST', '/auth/login', authenticated: false, body: {
+      'username': username,
+      'password': password,
+    });
   }
 
-  static Future<Map<String, dynamic>> googleSignIn(String idToken) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/auth/google'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'id_token': idToken}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> googleSignIn(String idToken) {
+    return _send('POST', '/auth/google',
+        authenticated: false, body: {'id_token': idToken});
   }
 
-  static Future<Map<String, dynamic>> forgotPassword(String email) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/auth/forgot-password'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> forgotPassword(String email) {
+    return _send('POST', '/auth/forgot-password',
+        authenticated: false, body: {'email': email});
   }
 
   static Future<Map<String, dynamic>> resetPassword(
-    String email, String code, String newPassword,
-  ) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/auth/reset-password'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'code': code, 'new_password': newPassword}),
-    );
-    return jsonDecode(response.body);
+    String email,
+    String code,
+    String newPassword,
+  ) {
+    return _send('POST', '/auth/reset-password', authenticated: false, body: {
+      'email': email,
+      'code': code,
+      'new_password': newPassword,
+    });
   }
 
   static Future<Map<String, dynamic>> updateProfile({
@@ -89,101 +190,54 @@ class ApiClient {
     String? email,
     String? newPassword,
     String? currentPassword,
-  }) async {
-    final body = <String, dynamic>{};
-    if (username        != null && username.isNotEmpty)        body['username']         = username;
-    if (email           != null && email.isNotEmpty)           body['email']            = email;
-    if (newPassword     != null && newPassword.isNotEmpty)     body['new_password']     = newPassword;
-    if (currentPassword != null && currentPassword.isNotEmpty) body['current_password'] = currentPassword;
-    final response = await http.put(
-      Uri.parse('${AppConstants.baseUrl}/auth/profile'),
-      headers: await _authHeaders(),
-      body: jsonEncode(body),
-    );
-    return jsonDecode(response.body);
+  }) {
+    return _send('PUT', '/auth/profile', body: {
+      if (username != null && username.isNotEmpty) 'username': username,
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (newPassword != null && newPassword.isNotEmpty) 'new_password': newPassword,
+      if (currentPassword != null && currentPassword.isNotEmpty)
+        'current_password': currentPassword,
+    });
   }
 
-  static Future<Map<String, dynamic>> deleteAccount({
-    required String password,
-  }) async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/auth/account'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'password': password}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> deleteAccount({required String password}) {
+    return _send('DELETE', '/auth/account', body: {'password': password});
   }
 
-  static Future<Map<String, dynamic>> cancelDeletion() async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/auth/cancel-deletion'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> cancelDeletion() {
+    return _send('POST', '/auth/cancel-deletion');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CATEGORIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>> getCategories() async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/categories'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getCategories() {
+    return _send('GET', '/categories');
   }
 
-  static Future<Map<String, dynamic>> addCategory(String name) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/categories'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'name': name}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> addCategory(String name) {
+    return _send('POST', '/categories', body: {'name': name});
   }
 
-  static Future<Map<String, dynamic>> deleteCategory(String name) async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/categories/${Uri.encodeComponent(name)}'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> deleteCategory(String name) {
+    return _send('DELETE', '/categories/${Uri.encodeComponent(name)}');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // INCOME TYPES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Get all income types — defaults + user's custom ones.
-  /// GET /api/income-types
-  static Future<Map<String, dynamic>> getIncomeTypes() async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/income-types'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getIncomeTypes() {
+    return _send('GET', '/income-types');
   }
 
-  /// Add a custom income type.
-  /// POST /api/income-types
-  static Future<Map<String, dynamic>> addIncomeType(String name) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/income-types'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'name': name}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> addIncomeType(String name) {
+    return _send('POST', '/income-types', body: {'name': name});
   }
 
-  /// Delete a custom income type by name.
-  /// DELETE /api/income-types/<n>
-  static Future<Map<String, dynamic>> deleteIncomeType(String name) async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/income-types/${Uri.encodeComponent(name)}'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> deleteIncomeType(String name) {
+    return _send('DELETE', '/income-types/${Uri.encodeComponent(name)}');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -194,31 +248,20 @@ class ApiClient {
     required double amount,
     required String incomeType,
     String description = '',
-  }) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/income'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'amount': amount, 'income_type': incomeType, 'description': description}),
-    );
-    return jsonDecode(response.body);
-  }
-
-  static Future<Map<String, dynamic>> getIncome({int? month, int? year}) async {
-    final now = DateTime.now();
-    final uri = Uri.parse('${AppConstants.baseUrl}/income').replace(queryParameters: {
-      'month': (month ?? now.month).toString(),
-      'year':  (year  ?? now.year).toString(),
+  }) {
+    return _send('POST', '/income', body: {
+      'amount': amount,
+      'income_type': incomeType,
+      'description': description,
     });
-    final response = await http.get(uri, headers: await _authHeaders());
-    return jsonDecode(response.body);
   }
 
-  static Future<Map<String, dynamic>> deleteIncome(int id) async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/income/$id'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getIncome({int? month, int? year}) {
+    return _send('GET', '/income', query: _period(month, year));
+  }
+
+  static Future<Map<String, dynamic>> deleteIncome(int id) {
+    return _send('DELETE', '/income/$id');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -231,34 +274,22 @@ class ApiClient {
     String description = '',
     String expenseType = 'daily',
     String? recurrenceInterval,
-  }) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/expenses'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'amount': amount, 'category': category, 'description': description,
-        'expense_type': expenseType, 'recurrence_interval': recurrenceInterval,
-      }),
-    );
-    return jsonDecode(response.body);
-  }
-
-  static Future<Map<String, dynamic>> getExpenses({int? month, int? year}) async {
-    final now = DateTime.now();
-    final uri = Uri.parse('${AppConstants.baseUrl}/expenses').replace(queryParameters: {
-      'month': (month ?? now.month).toString(),
-      'year':  (year  ?? now.year).toString(),
+  }) {
+    return _send('POST', '/expenses', body: {
+      'amount': amount,
+      'category': category,
+      'description': description,
+      'expense_type': expenseType,
+      'recurrence_interval': recurrenceInterval,
     });
-    final response = await http.get(uri, headers: await _authHeaders());
-    return jsonDecode(response.body);
   }
 
-  static Future<Map<String, dynamic>> deleteExpense(int id) async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/expenses/$id'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getExpenses({int? month, int? year}) {
+    return _send('GET', '/expenses', query: _period(month, year));
+  }
+
+  static Future<Map<String, dynamic>> deleteExpense(int id) {
+    return _send('DELETE', '/expenses/$id');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -269,24 +300,16 @@ class ApiClient {
     required String category,
     required double limit,
     String? monthYear,
-  }) async {
-    final now = DateTime.now();
-    final my  = monthYear ?? '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/budgets'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'category': category, 'limit': limit, 'month_year': my}),
-    );
-    return jsonDecode(response.body);
+  }) {
+    return _send('POST', '/budgets', body: {
+      'category': category,
+      'limit': limit,
+      'month_year': _monthYear(monthYear),
+    });
   }
 
-  static Future<Map<String, dynamic>> getBudgets({String? monthYear}) async {
-    final now = DateTime.now();
-    final my  = monthYear ?? '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    final uri = Uri.parse('${AppConstants.baseUrl}/budgets')
-        .replace(queryParameters: {'month_year': my});
-    final response = await http.get(uri, headers: await _authHeaders());
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getBudgets({String? monthYear}) {
+    return _send('GET', '/budgets', query: {'month_year': _monthYear(monthYear)});
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -297,137 +320,79 @@ class ApiClient {
     required String name,
     required double goalAmount,
     required String dueDate,
-  }) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/goals'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'name': name, 'goal_amount': goalAmount, 'due_date': dueDate}),
-    );
-    return jsonDecode(response.body);
+  }) {
+    return _send('POST', '/goals', body: {
+      'name': name,
+      'goal_amount': goalAmount,
+      'due_date': dueDate,
+    });
   }
 
-  static Future<Map<String, dynamic>> getGoals() async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/goals'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getGoals() {
+    return _send('GET', '/goals');
   }
 
-  static Future<Map<String, dynamic>> closeGoal(int id) async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/goals/$id'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> closeGoal(int id) {
+    return _send('DELETE', '/goals/$id');
   }
 
   static Future<Map<String, dynamic>> addContribution({
     required int goalId,
     required double amount,
     String? note,
-  }) async {
-    final body = <String, dynamic>{'amount': amount};
-    if (note != null && note.isNotEmpty) body['note'] = note;
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/goals/$goalId/contribute'),
-      headers: await _authHeaders(),
-      body: jsonEncode(body),
-    );
-    return jsonDecode(response.body);
+  }) {
+    return _send('POST', '/goals/$goalId/contribute', body: {
+      'amount': amount,
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
   }
 
-  static Future<Map<String, dynamic>> getContributions(int goalId) async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/goals/$goalId/contributions'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getContributions(int goalId) {
+    return _send('GET', '/goals/$goalId/contributions');
   }
 
-  static Future<Map<String, dynamic>> getAllContributions({int? month, int? year}) async {
-    final now = DateTime.now();
-    final uri = Uri.parse('${AppConstants.baseUrl}/contributions').replace(
-      queryParameters: {
-        'month': (month ?? now.month).toString(),
-        'year':  (year  ?? now.year).toString(),
-      },
-    );
-    final response = await http.get(uri, headers: await _authHeaders());
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getAllContributions({int? month, int? year}) {
+    return _send('GET', '/contributions', query: _period(month, year));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ANALYSIS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>> analyze({int? month, int? year}) async {
-    final now = DateTime.now();
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/analyze'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'month': month ?? now.month, 'year': year ?? now.year}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> analyze({int? month, int? year}) {
+    return _send('POST', '/analyze', body: _period(month, year));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // GUARDIAN
   // ═══════════════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>> linkGuardian({required String phoneNumber}) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/guardian/link'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'phone_number': phoneNumber}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> linkGuardian({required String phoneNumber}) {
+    return _send('POST', '/guardian/link', body: {'phone_number': phoneNumber});
   }
 
-  static Future<Map<String, dynamic>> getGuardianStatus() async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/guardian/status'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getGuardianStatus() {
+    return _send('GET', '/guardian/status');
   }
 
-  static Future<Map<String, dynamic>> unlinkGuardian() async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/guardian/unlink'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> unlinkGuardian() {
+    return _send('DELETE', '/guardian/unlink');
   }
 
-  static Future<Map<String, dynamic>> notifyGuardian({int? month, int? year}) async {
-    final now = DateTime.now();
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/guardian/notify'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'month': month ?? now.month, 'year': year ?? now.year}),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> notifyGuardian({int? month, int? year}) {
+    return _send('POST', '/guardian/notify', body: _period(month, year));
   }
 
-  static Future<Map<String, dynamic>> getGuardianReport() async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/guardian/report'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getGuardianReport() {
+    return _send('GET', '/guardian/report');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // HELB PLANNER
   // ═══════════════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>> getHelbPlan() async {
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/helb/plan'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> getHelbPlan() {
+    return _send('GET', '/helb/plan');
   }
 
   static Future<Map<String, dynamic>> saveHelbPlan({
@@ -436,26 +401,17 @@ class ApiClient {
     required String startDate,
     required String endDate,
     required Map<String, double> allocations,
-  }) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/helb/plan'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'semester_name': semesterName,
-        'helb_amount':   helbAmount,
-        'start_date':    startDate,
-        'end_date':      endDate,
-        'allocations':   allocations,
-      }),
-    );
-    return jsonDecode(response.body);
+  }) {
+    return _send('POST', '/helb/plan', body: {
+      'semester_name': semesterName,
+      'helb_amount': helbAmount,
+      'start_date': startDate,
+      'end_date': endDate,
+      'allocations': allocations,
+    });
   }
 
-  static Future<Map<String, dynamic>> deleteHelbPlan() async {
-    final response = await http.delete(
-      Uri.parse('${AppConstants.baseUrl}/helb/plan'),
-      headers: await _authHeaders(),
-    );
-    return jsonDecode(response.body);
+  static Future<Map<String, dynamic>> deleteHelbPlan() {
+    return _send('DELETE', '/helb/plan');
   }
 }

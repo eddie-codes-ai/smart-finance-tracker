@@ -59,8 +59,12 @@ class AuthProvider extends ChangeNotifier {
       _error = response['message'] ?? 'Registration failed.';
       _setLoading(false);
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -87,8 +91,12 @@ class AuthProvider extends ChangeNotifier {
       _error = response['message'] ?? 'Login failed.';
       _setLoading(false);
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -135,8 +143,12 @@ class AuthProvider extends ChangeNotifier {
       _error = response['message'] ?? 'Google sign-in failed.';
       _setLoading(false);
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Google sign-in error: $e';
+      _error = 'Google sign-in failed. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -155,8 +167,12 @@ class AuthProvider extends ChangeNotifier {
       if (response['status'] == 'success') return true;
       _error = response['message'] ?? 'Request failed.';
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -171,8 +187,12 @@ class AuthProvider extends ChangeNotifier {
       if (response['status'] == 'success') return true;
       _error = response['message'] ?? 'Password reset failed.';
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -206,8 +226,12 @@ class AuthProvider extends ChangeNotifier {
       _error = response['message'] ?? 'Update failed.';
       _setLoading(false);
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -234,8 +258,12 @@ class AuthProvider extends ChangeNotifier {
       _error = response['message'] ?? 'Failed to schedule deletion.';
       _setLoading(false);
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -261,8 +289,12 @@ class AuthProvider extends ChangeNotifier {
       _error = response['message'] ?? 'Failed to cancel deletion.';
       _setLoading(false);
       return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _error = 'Network error: $e';
+      _error = 'Something went wrong. Please try again.';
       _setLoading(false);
       return false;
     }
