@@ -4,12 +4,32 @@
 
 class AppConstants {
   // ─── Backend ────────────────────────────────────────────────────────────────
-  // ── API Base URL ──────────────────────────────────────
-  // Use this for emulator testing:
- //static const String baseUrl = 'http://10.0.2.2:5000/api';
-
-// Use this for production APK:
-static const String baseUrl = 'https://smart-finance-tracker-production-3503.up.railway.app/api';
+  // API base URL. Overridable at build time, so switching between a local
+  // backend and a deployed one never means editing this file:
+  //
+  //     flutter run --dart-define=API_BASE_URL=https://your-host/api
+  //
+  // The default assumes the backend is reachable on the device's own
+  // localhost, which is true for both a USB-attached phone and an emulator
+  // once you forward the port over adb:
+  //
+  //     cd backend && python app.py          # terminal 1
+  //     adb reverse tcp:5000 tcp:5000        # terminal 2, once per connect
+  //     flutter run
+  //
+  // adb reverse tunnels the phone's localhost:5000 to this machine over the
+  // cable, so there is no LAN IP to look up, nothing for the firewall to
+  // block, and no requirement to share a Wi-Fi network. Without it, use the
+  // machine's LAN IP instead:
+  //
+  //     flutter run --dart-define=API_BASE_URL=http://192.168.1.20:5000/api
+  //
+  // Note that plain http only works in debug builds - see
+  // android/app/src/debug/res/xml/network_security_config.xml.
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:5000/api',
+  );
 
   // ─── Expense Categories ─────────────────────────────────────────────────────
   // Must match the category values used in the Flask backend exactly.
