@@ -1,7 +1,8 @@
 from collections import defaultdict
 from datetime import datetime, date
-from app_time import app_now, app_today, local_date_of, month_range_utc
-from models import db, Income, Expense, Budget, SavingsGoal, GoalContribution
+from app_time import (local_date_of, month_range_utc, now_in, resolve_timezone,
+                      today_in)
+from models import db, User, Income, Expense, Budget, SavingsGoal, GoalContribution
 
 
 # Categories treated as luxury / non-essential
@@ -25,12 +26,18 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
         dict of all computed fields expected by run_analysis() plus
         extra fields returned to Flutter (savings, balance, daily_budget, etc.)
     """
-    now   = app_now()
+    # Every calendar question below - which month, which day - is asked in the
+    # user's own home zone, so two users in different countries get different
+    # (and individually correct) answers from the same rows.
+    owner = User.query.get(user_id)
+    tz    = resolve_timezone(owner.timezone if owner else None)
+
+    now   = now_in(tz)
     month = month or now.month
     year  = year  or now.year
 
     # ── Fetch records for the requested period ────────────────────────────────
-    period_start, period_end = month_range_utc(year, month)
+    period_start, period_end = month_range_utc(year, month, tz)
 
     income_records = Income.query.filter(
         Income.user_id == user_id,
@@ -89,8 +96,8 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     daily_budget   = (monthly_income / 30) if monthly_income else (total_income / 30) if total_income else 0
 
     # ── Overspending ──────────────────────────────────────────────────────────
-    overspent_days      = _calculate_overspent_days(regular_expenses, daily_budget)
-    overspending_streak = _calculate_overspending_streak(regular_expenses, daily_budget)
+    overspent_days      = _calculate_overspent_days(regular_expenses, daily_budget, tz)
+    overspending_streak = _calculate_overspending_streak(regular_expenses, daily_budget, tz)
 
     # ── Luxury spending ───────────────────────────────────────────────────────
     luxury_spending_ratio = _calculate_luxury_spending_ratio(regular_expenses)
@@ -101,7 +108,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
 
     # ── Goal progress — uses contributions, not net savings ───────────────────
     goal_progress = _calculate_goal_progress(primary_goal, primary_goal_contributed)
-    goal_health   = _evaluate_goal_health(primary_goal, primary_goal_contributed)
+    goal_health   = _evaluate_goal_health(primary_goal, primary_goal_contributed, tz)
 
     # ── Salary burn rate ──────────────────────────────────────────────────────
     day_of_month     = now.day if (month == now.month and year == now.year) else 30
@@ -110,7 +117,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     # ── Trend detection — compare with previous month ─────────────────────────
     prev_month, prev_year = (month - 1, year) if month > 1 else (12, year - 1)
 
-    prev_start, prev_end = month_range_utc(prev_year, prev_month)
+    prev_start, prev_end = month_range_utc(prev_year, prev_month, tz)
 
     prev_income_records = Income.query.filter(
         Income.user_id == user_id,
@@ -134,7 +141,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     luxury_expense_growth = _detect_luxury_expense_growth(prev_luxury, luxury_spending_ratio)
 
     # ── Goal achievement streak ───────────────────────────────────────────────
-    goal_achievement_streak = _calculate_goal_achievement_streak(user_id, primary_goal)
+    goal_achievement_streak = _calculate_goal_achievement_streak(user_id, primary_goal, tz)
 
     # ── Budget variance per category ──────────────────────────────────────────
     budgets_dict    = {b.category: b.limit for b in budget_records}
@@ -175,7 +182,7 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
 
 # ─── Private helpers ──────────────────────────────────────────────────────────
 
-def _calculate_overspent_days(expenses: list, daily_budget: float) -> int:
+def _calculate_overspent_days(expenses: list, daily_budget: float, tz) -> int:
     """Count days where total spending exceeded the daily budget."""
     if daily_budget <= 0:
         return 0
@@ -184,17 +191,17 @@ def _calculate_overspent_days(expenses: list, daily_budget: float) -> int:
     # day, skewing the overspending penalties.
     daily_totals = defaultdict(float)
     for e in expenses:
-        daily_totals[local_date_of(e.date_added)] += e.amount
+        daily_totals[local_date_of(e.date_added, tz)] += e.amount
     return sum(1 for total in daily_totals.values() if total > daily_budget)
 
 
-def _calculate_overspending_streak(expenses: list, daily_budget: float) -> int:
+def _calculate_overspending_streak(expenses: list, daily_budget: float, tz) -> int:
     """Longest run of consecutive days where spending exceeded daily budget."""
     if daily_budget <= 0:
         return 0
     daily_totals = defaultdict(float)
     for e in expenses:
-        daily_totals[local_date_of(e.date_added)] += e.amount
+        daily_totals[local_date_of(e.date_added, tz)] += e.amount
 
     streak = max_streak = 0
     for day in sorted(daily_totals.keys()):
@@ -233,12 +240,12 @@ def _calculate_goal_progress(goal: SavingsGoal, contributed: float) -> float:
     return min((contributed / goal.goal_amount) * 100, 150.0)
 
 
-def _evaluate_goal_health(goal: SavingsGoal, contributed: float) -> str:
+def _evaluate_goal_health(goal: SavingsGoal, contributed: float, tz) -> str:
     """Human-readable goal tracking status based on contributions."""
     if not goal:
         return "No savings goal set."
 
-    today       = app_today()
+    today       = today_in(tz)
     total_days  = (goal.due_date - goal.date_set.date()).days
     days_passed = (today - goal.date_set.date()).days
 
@@ -303,7 +310,7 @@ def _detect_luxury_expense_growth(prev_luxury: float, current_luxury: float) -> 
     return "stable"
 
 
-def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
+def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal, tz) -> int:
     """
     Count consecutive months where contributions met or exceeded
     the expected goal progress for that point in time.
@@ -313,7 +320,7 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
         return 0
 
     streak = 0
-    now    = app_now()
+    now    = now_in(tz)
 
     for i in range(1, 13):
         m = now.month - i
@@ -322,7 +329,7 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
             m += 12
             y -= 1
 
-        streak_start, streak_end = month_range_utc(y, m)
+        streak_start, streak_end = month_range_utc(y, m, tz)
         inc = Income.query.filter(
             Income.user_id == user_id,
             Income.date_added >= streak_start,

@@ -3,7 +3,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/device_timezone.dart';
 import '../../core/theme.dart';
+import '../../data/remote/api_client.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 
@@ -17,6 +19,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _usernameExpanded = false;
   bool _emailExpanded    = false;
   bool _passwordExpanded = false;
+  bool _timezoneExpanded = false;
+
+  // Time zone picker. The full list comes from the server so it can never
+  // offer a name the backend would reject.
+  final _zoneSearchCtrl  = TextEditingController();
+  List<String> _allZones = const [];
+  String? _deviceZone;
+  bool _loadingZones     = false;
+  bool _savingTimezone   = false;
 
   final _usernameCtrl        = TextEditingController();
   final _emailCtrl           = TextEditingController();
@@ -37,11 +48,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _cancellingDelete = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Cheap and offline — read it up front so the section can immediately say
+    // whether the saved zone still matches the device.
+    DeviceTimezone.current().then((zone) {
+      if (mounted) setState(() => _deviceZone = zone);
+    });
+  }
+
+  @override
   void dispose() {
     _usernameCtrl.dispose(); _emailCtrl.dispose();
     _currentPasswordCtrl.dispose(); _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose(); _deletePasswordCtrl.dispose();
+    _zoneSearchCtrl.dispose();
     super.dispose();
+  }
+
+  /// Fetch the accepted zone list the first time the section is opened.
+  Future<void> _loadZones() async {
+    if (_allZones.isNotEmpty || _loadingZones) return;
+    setState(() => _loadingZones = true);
+    try {
+      final data = await ApiClient.getTimezones();
+      final zones = (data['timezones'] as List).cast<String>();
+      if (mounted) setState(() { _allZones = zones; _loadingZones = false; });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingZones = false);
+      _showSnackBar(e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingZones = false);
+      _showSnackBar('Could not load the time zone list.', isError: true);
+    }
+  }
+
+  Future<void> _saveTimezone(String zone) async {
+    setState(() => _savingTimezone = true);
+    final auth = context.read<AuthProvider>();
+    final success = await auth.updateProfile(timezone: zone);
+    if (!mounted) return;
+    setState(() => _savingTimezone = false);
+    if (success) {
+      _zoneSearchCtrl.clear();
+      setState(() => _timezoneExpanded = false);
+      _showSnackBar('Time zone set to $zone.');
+    } else {
+      _showSnackBar(auth.error ?? 'Failed to update the time zone.', isError: true);
+    }
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -202,8 +258,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onToggle: () => setState(() {
                 _passwordExpanded = !_passwordExpanded;
                 _usernameExpanded = false; _emailExpanded = false;
+                _timezoneExpanded = false;
               }),
               child: _buildPasswordForm()),
+          const SizedBox(height: 12),
+
+          _buildSection(icon: Icons.public, title: 'Time Zone',
+              subtitle: user?.timezone ?? 'Africa/Nairobi',
+              expanded: _timezoneExpanded,
+              onToggle: () {
+                setState(() {
+                  _timezoneExpanded = !_timezoneExpanded;
+                  _usernameExpanded = false; _emailExpanded = false;
+                  _passwordExpanded = false;
+                });
+                if (_timezoneExpanded) _loadZones();
+              },
+              child: _buildTimezoneForm(user?.timezone ?? 'Africa/Nairobi')),
 
           const SizedBox(height: 32),
 
@@ -424,6 +495,140 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ]),
     );
+  }
+
+  Widget _buildTimezoneForm(String currentZone) {
+    final cs      = Theme.of(context).colorScheme;
+    final divider = Theme.of(context).dividerColor;
+    final query   = _zoneSearchCtrl.text.trim().toLowerCase();
+
+    final matches = query.isEmpty
+        ? _allZones
+        : _allZones.where((z) => z.toLowerCase().contains(query)).toList();
+    // The full list is ~600 entries; showing every match while someone types
+    // would rebuild a very long list on each keystroke for no benefit.
+    final shown = matches.take(60).toList();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(
+        'Your months and daily spending are grouped using this zone. It stays '
+        'fixed when you travel, so past months never change.',
+        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+      ),
+      const SizedBox(height: 14),
+
+      // ── Device shortcut ─────────────────────────────────────────────────
+      if (_deviceZone != null && _deviceZone != currentZone) ...[
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.info.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.info.withOpacity(0.35)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              const Icon(Icons.phone_android, size: 17, color: AppTheme.info),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Your device says ${_deviceZone!}',
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurface))),
+            ]),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: _savingTimezone ? null : () => _saveTimezone(_deviceZone!),
+              child: const Text("Use my device's time zone"),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+      ] else if (_deviceZone != null) ...[
+        Row(children: [
+          const Icon(Icons.check_circle_outline, size: 16, color: AppTheme.success),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Matches your device.',
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)))),
+        ]),
+        const SizedBox(height: 16),
+      ],
+
+      // ── Search ──────────────────────────────────────────────────────────
+      TextField(
+        controller: _zoneSearchCtrl,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: 'Search time zones',
+          hintText: 'e.g. Nairobi, Toronto, London',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _zoneSearchCtrl.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => setState(() => _zoneSearchCtrl.clear()),
+                ),
+        ),
+      ),
+      const SizedBox(height: 12),
+
+      if (_loadingZones)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        )
+      else if (_allZones.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text('Time zone list unavailable. Check your connection.',
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+        )
+      else if (shown.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text('No time zone matches "${_zoneSearchCtrl.text.trim()}".',
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+        )
+      else
+        Container(
+          constraints: const BoxConstraints(maxHeight: 260),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: divider),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: shown.length,
+            separatorBuilder: (_, __) => Divider(height: 1, color: divider),
+            itemBuilder: (_, i) {
+              final zone     = shown[i];
+              final selected = zone == currentZone;
+              return ListTile(
+                dense: true,
+                title: Text(zone, style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                    color: selected ? AppTheme.primary : cs.onSurface)),
+                trailing: selected
+                    ? const Icon(Icons.check, size: 18, color: AppTheme.primary)
+                    : null,
+                onTap: (_savingTimezone || selected) ? null : () => _saveTimezone(zone),
+              );
+            },
+          ),
+        ),
+
+      if (matches.length > shown.length) ...[
+        const SizedBox(height: 8),
+        Text('${matches.length - shown.length} more — keep typing to narrow it down.',
+            style: TextStyle(fontSize: 11.5, color: cs.onSurface.withOpacity(0.5))),
+      ],
+
+      if (_savingTimezone) ...[
+        const SizedBox(height: 14),
+        const Center(child: SizedBox(
+            height: 20, width: 20,
+            child: CircularProgressIndicator(strokeWidth: 2))),
+      ],
+    ]);
   }
 
   Widget _buildUsernameForm() {

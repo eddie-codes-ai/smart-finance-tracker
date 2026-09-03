@@ -45,6 +45,7 @@ dependencies:
 
   # Google Sign-In
   google_sign_in: ^6.2.1
+  flutter_timezone: ^5.1.0
 
 dev_dependencies:
   flutter_test:

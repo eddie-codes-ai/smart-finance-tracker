@@ -5,10 +5,11 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
-from app_time import app_now, month_range_utc, utc_now
+from app_time import (DEFAULT_TIMEZONE_NAME, is_valid_timezone, known_timezones,
+                      month_range_utc, now_in, resolve_timezone, utc_now)
 
 from models import (db, User, Income, Expense, Budget, SavingsGoal,
                     GoalContribution, HelbPlan, UserCategory, UserIncomeType,
@@ -64,6 +65,21 @@ def positive_amount(value) -> Optional[float]:
     if amount <= 0:
         return None
     return amount
+
+def current_user_tz():
+    """
+    The signed-in user's home timezone, resolved once per request.
+
+    Month boundaries and daily spending buckets are computed in this zone, so
+    every handler that answers a calendar question needs it. Cached on flask.g
+    because a single handler can ask three times and this should not mean three
+    queries.
+    """
+    if not hasattr(g, "_user_tz"):
+        user = User.query.get(int(get_jwt_identity()))
+        g._user_tz = resolve_timezone(user.timezone if user else None)
+    return g._user_tz
+
 
 def parse_timestamp(value) -> Optional[datetime]:
     """
@@ -154,6 +170,11 @@ def register():
     if email and User.query.filter_by(email=email).first():
         return error("Email already registered.", 409)
     user = User(username=username, email=email)
+    requested_tz = (data.get("timezone") or "").strip()
+    if requested_tz and is_valid_timezone(requested_tz):
+        user.timezone = requested_tz
+    else:
+        user.timezone = DEFAULT_TIMEZONE_NAME
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -261,8 +282,13 @@ def update_profile():
     new_email        = data.get("email", "").strip().lower() or None
     new_password     = data.get("new_password", "") or None
     current_password = data.get("current_password", "") or None
-    if not any([new_username, new_email, new_password]):
+    new_timezone     = (data.get("timezone") or "").strip() or None
+    if not any([new_username, new_email, new_password, new_timezone]):
         return error("No changes provided.")
+    if new_timezone:
+        if not is_valid_timezone(new_timezone):
+            return error(f"'{new_timezone}' is not a recognised time zone.")
+        user.timezone = new_timezone
     if new_username:
         if new_username == user.username:
             return error("New username is the same as your current username.")
@@ -319,6 +345,19 @@ def cancel_account_deletion():
     user.deletion_requested_at = None
     db.session.commit()
     return success({"message": "Account deletion cancelled. Your account is safe.", "user": user.to_dict()})
+
+
+@api.route("/timezones", methods=["GET"])
+@jwt_required()
+def get_timezones():
+    """
+    Every IANA zone this server accepts.
+
+    Served from the backend so the app's picker can never offer a name the
+    server would reject, and so the app does not have to ship its own copy of
+    the tz database.
+    """
+    return success({"timezones": known_timezones(), "default": DEFAULT_TIMEZONE_NAME})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -465,9 +504,11 @@ def add_income():
 @jwt_required()
 def get_income():
     user_id = int(get_jwt_identity())
-    month   = request.args.get("month", app_now().month, type=int)
-    year    = request.args.get("year",  app_now().year,  type=int)
-    period_start, period_end = month_range_utc(year, month)
+    tz      = current_user_tz()
+    today   = now_in(tz)
+    month   = request.args.get("month", today.month, type=int)
+    year    = request.args.get("year",  today.year,  type=int)
+    period_start, period_end = month_range_utc(year, month, tz)
     records = Income.query.filter(
         Income.user_id == user_id,
         Income.date_added >= period_start,
@@ -564,9 +605,11 @@ def add_expense():
 @jwt_required()
 def get_expenses():
     user_id = int(get_jwt_identity())
-    month   = request.args.get("month", app_now().month, type=int)
-    year    = request.args.get("year",  app_now().year,  type=int)
-    period_start, period_end = month_range_utc(year, month)
+    tz      = current_user_tz()
+    today   = now_in(tz)
+    month   = request.args.get("month", today.month, type=int)
+    year    = request.args.get("year",  today.year,  type=int)
+    period_start, period_end = month_range_utc(year, month, tz)
     records = Expense.query.filter(
         Expense.user_id == user_id,
         Expense.date_added >= period_start,
@@ -662,7 +705,7 @@ def set_budget():
     data       = body()
     category   = data.get("category")
     limit      = positive_amount(data.get("limit"))
-    month_year = data.get("month_year", app_now().strftime("%Y-%m"))
+    month_year = data.get("month_year", now_in(current_user_tz()).strftime("%Y-%m"))
     if not category or limit is None:
         return error("Category and a valid limit are required.")
     existing = Budget.query.filter_by(user_id=user_id, category=category, month_year=month_year).first()
@@ -678,7 +721,7 @@ def set_budget():
 @jwt_required()
 def get_budgets():
     user_id    = int(get_jwt_identity())
-    month_year = request.args.get("month_year", app_now().strftime("%Y-%m"))
+    month_year = request.args.get("month_year", now_in(current_user_tz()).strftime("%Y-%m"))
     records    = Budget.query.filter_by(user_id=user_id, month_year=month_year).all()
     return success({"budgets": [r.to_dict() for r in records]})
 
@@ -763,9 +806,11 @@ def get_contributions(goal_id):
 @jwt_required()
 def get_all_contributions():
     user_id = int(get_jwt_identity())
-    month   = request.args.get("month", app_now().month, type=int)
-    year    = request.args.get("year",  app_now().year,  type=int)
-    period_start, period_end = month_range_utc(year, month)
+    tz      = current_user_tz()
+    today   = now_in(tz)
+    month   = request.args.get("month", today.month, type=int)
+    year    = request.args.get("year",  today.year,  type=int)
+    period_start, period_end = month_range_utc(year, month, tz)
     contributions = GoalContribution.query.filter(
         GoalContribution.user_id == user_id,
         GoalContribution.date_added >= period_start,
@@ -788,8 +833,9 @@ def get_all_contributions():
 def analyze():
     user_id = int(get_jwt_identity())
     data    = body()
-    month   = data.get("month", app_now().month)
-    year    = data.get("year",  app_now().year)
+    today   = now_in(current_user_tz())
+    month   = data.get("month", today.month)
+    year    = data.get("year",  today.year)
     payload = compute_analysis_payload(user_id, month, year)
     result  = run_analysis(payload)
     auto_notify_status = None
@@ -868,8 +914,9 @@ def guardian_notify():
     if not guardian:
         return error("No active guardian linked.", 404)
     data  = body()
-    month = data.get("month", app_now().month)
-    year  = data.get("year",  app_now().year)
+    today = now_in(current_user_tz())
+    month = data.get("month", today.month)
+    year  = data.get("year",  today.year)
     payload     = compute_analysis_payload(user_id, month, year)
     result      = run_analysis(payload)
     user        = User.query.get(user_id)

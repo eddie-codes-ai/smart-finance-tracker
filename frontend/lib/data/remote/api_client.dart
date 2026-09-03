@@ -155,11 +155,13 @@ class ApiClient {
     String username,
     String password, {
     String? email,
+    String? timezone,
   }) {
     return _send('POST', '/auth/register', authenticated: false, body: {
       'username': username,
       'password': password,
       if (email != null && email.isNotEmpty) 'email': email,
+      if (timezone != null && timezone.isNotEmpty) 'timezone': timezone,
     });
   }
 
@@ -197,6 +199,7 @@ class ApiClient {
     String? email,
     String? newPassword,
     String? currentPassword,
+    String? timezone,
   }) {
     return _send('PUT', '/auth/profile', body: {
       if (username != null && username.isNotEmpty) 'username': username,
@@ -204,6 +207,7 @@ class ApiClient {
       if (newPassword != null && newPassword.isNotEmpty) 'new_password': newPassword,
       if (currentPassword != null && currentPassword.isNotEmpty)
         'current_password': currentPassword,
+      if (timezone != null && timezone.isNotEmpty) 'timezone': timezone,
     });
   }
 
@@ -213,6 +217,13 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> cancelDeletion() {
     return _send('POST', '/auth/cancel-deletion');
+  }
+
+  /// Every IANA zone the server accepts, for the profile picker. Fetched
+  /// rather than bundled so the list can never drift from what the backend
+  /// will actually take.
+  static Future<Map<String, dynamic>> getTimezones() {
+    return _send('GET', '/timezones');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -5,6 +5,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:frontend/core/device_timezone.dart';
 import 'package:frontend/data/local/secure_storage.dart';
 import 'package:frontend/data/remote/api_client.dart';
 import 'package:frontend/models/user_model.dart';
@@ -48,7 +49,14 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     _error = null;
     try {
-      final response = await ApiClient.register(username, password, email: email);
+      // Seed the home zone from the device at sign-up. It is only ever seeded
+      // here: re-reading it on every login would re-pin the zone each time the
+      // user travelled, which is exactly what a *home* zone must not do.
+      final response = await ApiClient.register(
+        username, password,
+        email: email,
+        timezone: await DeviceTimezone.current(),
+      );
       if (response['status'] == 'success') {
         _user = UserModel.fromJson(response['user']);
         await SecureStorage.saveToken(response['token']);
@@ -207,6 +215,7 @@ class AuthProvider extends ChangeNotifier {
     String? email,
     String? newPassword,
     String? currentPassword,
+    String? timezone,
   }) async {
     _setLoading(true);
     _error = null;
@@ -216,6 +225,7 @@ class AuthProvider extends ChangeNotifier {
         email:           email,
         newPassword:     newPassword,
         currentPassword: currentPassword,
+        timezone:        timezone,
       );
       if (response['status'] == 'success') {
         _user = UserModel.fromJson(response['user']);

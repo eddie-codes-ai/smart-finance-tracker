@@ -32,10 +32,14 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-secret-not-used-in-production")
 from flask_migrate import upgrade                                     # noqa: E402
 
 from app import create_app                                            # noqa: E402
-from app_time import (APP_TIMEZONE, iso_utc, local_date_of,           # noqa: E402
-                      month_range_utc, to_app_tz)
+from app_time import (default_timezone, iso_utc, local_date_of,       # noqa: E402
+                      month_range_utc, to_tz)
 from services.analysis_service import (_calculate_overspent_days,     # noqa: E402
                                        _calculate_overspending_streak)
+
+# This suite covers the Kenyan default zone; per-user zones live in
+# test_user_timezone.py.
+NBO = default_timezone()
 
 _app = create_app()
 _app.config["PROPAGATE_EXCEPTIONS"] = False
@@ -117,19 +121,19 @@ def test_the_missing_money_shows_up_in_the_month_total():
 # ── Month boundaries ──────────────────────────────────────────────────────────
 
 def test_month_range_is_half_open():
-    start, end = month_range_utc(2026, 2)
+    start, end = month_range_utc(2026, 2, NBO)
     assert start == datetime(2026, 1, 31, 21, 0), start
     assert end == datetime(2026, 2, 28, 21, 0), end
 
 
 def test_month_range_wraps_the_year():
-    assert month_range_utc(2026, 1)[0] == datetime(2025, 12, 31, 21, 0)
-    assert month_range_utc(2026, 12)[1] == datetime(2026, 12, 31, 21, 0)
+    assert month_range_utc(2026, 1, NBO)[0] == datetime(2025, 12, 31, 21, 0)
+    assert month_range_utc(2026, 12, NBO)[1] == datetime(2026, 12, 31, 21, 0)
 
 
 def test_first_and_last_instants_land_in_exactly_one_month():
     user = _new_user()
-    start, end = month_range_utc(2026, 2)
+    start, end = month_range_utc(2026, 2, NBO)
 
     first = _expense_at(start.isoformat(), headers=user)
     last = _expense_at((end.replace(microsecond=0)).isoformat(), headers=user)
@@ -194,25 +198,25 @@ def test_daily_buckets_use_the_local_day():
         _FakeExpense(datetime(2026, 1, 31, 22, 0), 600.0),   # 01:00 EAT, 1 Feb
         _FakeExpense(datetime(2026, 2, 1, 20, 0), 600.0),    # 23:00 EAT, 1 Feb
     ]
-    assert local_date_of(same_local_day[0].date_added) == date(2026, 2, 1)
-    assert local_date_of(same_local_day[1].date_added) == date(2026, 2, 1)
+    assert local_date_of(same_local_day[0].date_added, NBO) == date(2026, 2, 1)
+    assert local_date_of(same_local_day[1].date_added, NBO) == date(2026, 2, 1)
 
     # Both fall on one local day totalling 1200 against a 1000 budget: one
     # overspent day. Bucketed by UTC date it would be two days of 600, i.e. none.
-    assert _calculate_overspent_days(same_local_day, 1000.0) == 1
-    assert _calculate_overspending_streak(same_local_day, 1000.0) == 1
+    assert _calculate_overspent_days(same_local_day, 1000.0, NBO) == 1
+    assert _calculate_overspending_streak(same_local_day, 1000.0, NBO) == 1
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def test_to_app_tz_adds_three_hours():
-    assert to_app_tz(datetime(2026, 1, 31, 22, 0)).hour == 1
-    assert to_app_tz(datetime(2026, 1, 31, 22, 0)).day == 1
+def test_to_tz_adds_three_hours():
+    assert to_tz(datetime(2026, 1, 31, 22, 0), NBO).hour == 1
+    assert to_tz(datetime(2026, 1, 31, 22, 0), NBO).day == 1
 
 
 def test_app_timezone_has_no_dst():
     """Kenya has never observed DST; the offset is constant across the year."""
-    offsets = {APP_TIMEZONE.utcoffset(datetime(2026, m, 15)) for m in range(1, 13)}
+    offsets = {NBO.utcoffset(datetime(2026, m, 15)) for m in range(1, 13)}
     assert len(offsets) == 1, offsets
 
 

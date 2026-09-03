@@ -3,7 +3,7 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app_time import iso_utc, utc_now
+from app_time import DEFAULT_TIMEZONE_NAME, iso_utc, utc_now
 
 db = SQLAlchemy()
 
@@ -37,6 +37,12 @@ class User(db.Model):
     password_hash         = db.Column(db.String(256),              nullable=False)
     email                 = db.Column(db.String(120), unique=True,  nullable=True)
     google_id             = db.Column(db.String(100), unique=True,  nullable=True)
+    # The user's HOME zone, as an IANA name. Deliberately not the device's
+    # current zone: month boundaries follow this, so travelling must not
+    # re-bucket a user's existing history.
+    timezone              = db.Column(db.String(64), nullable=False,
+                                      default=DEFAULT_TIMEZONE_NAME,
+                                      server_default=DEFAULT_TIMEZONE_NAME)
     reset_token           = db.Column(db.String(10),               nullable=True)
     reset_token_expiry    = db.Column(db.DateTime,                  nullable=True)
     deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
@@ -74,6 +80,7 @@ class User(db.Model):
             "id":                    self.id,
             "username":              self.username,
             "email":                 self.email,
+            "timezone":              self.timezone or DEFAULT_TIMEZONE_NAME,
             "created_at":            iso_utc(self.created_at),
             "deletion_requested_at": iso_utc(self.deletion_requested_at),
             "deletion_due_at":       iso_utc(self.deletion_due_at),
