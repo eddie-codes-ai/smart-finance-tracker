@@ -44,11 +44,12 @@ class AnalysisProvider extends ChangeNotifier {
       _errorMessage = e.message;
       return false;
     } catch (e, stackTrace) {
-      print('ANALYSIS ERROR: $e');
-      print('STACK: $stackTrace');
-      _errorMessage = 'Analysis failed. Check your connection.';
+      // debugPrint is stripped from release builds; print() was writing
+      // exception detail to logcat on users' devices.
+      debugPrint('ANALYSIS ERROR: $e\n$stackTrace');
+      _errorMessage = 'Analysis failed. Please try again.';
       return false;
-    }finally {
+    } finally {
       _setLoading(false);
     }
   }

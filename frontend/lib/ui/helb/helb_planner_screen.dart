@@ -4,10 +4,8 @@
 // Now uses ApiClient for all HTTP calls (same token handling as every
 // other screen) — fixes the 422 Unprocessable Entity error.
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:frontend/data/remote/api_client.dart';
 
@@ -17,7 +15,6 @@ const List<String> _kCategories = [
 ];
 const List<String> _kNeeds = ['Food','Transport','Health','Education','Utilities','Rent'];
 const List<String> _kWants = ['Entertainment','Shopping','Other'];
-const String _kApiBase = 'http://10.0.2.2:5000/api';
 
 // ── Lightweight in-memory plan model ─────────────────────────────────────────
 class _PlanData {
