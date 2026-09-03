@@ -3,6 +3,8 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from app_time import iso_utc, utc_now
+
 db = SQLAlchemy()
 
 # ─── Constants ────────────────────────────────────────────────────────────────
@@ -38,7 +40,7 @@ class User(db.Model):
     reset_token           = db.Column(db.String(10),               nullable=True)
     reset_token_expiry    = db.Column(db.DateTime,                  nullable=True)
     deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
-    created_at            = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at            = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     incomes            = db.relationship("Income",         backref="owner", lazy=True, cascade="all, delete-orphan")
     expenses           = db.relationship("Expense",        backref="owner", lazy=True, cascade="all, delete-orphan")
@@ -72,11 +74,9 @@ class User(db.Model):
             "id":                    self.id,
             "username":              self.username,
             "email":                 self.email,
-            "created_at":            self.created_at.isoformat(),
-            "deletion_requested_at": self.deletion_requested_at.isoformat()
-                                     if self.deletion_requested_at else None,
-            "deletion_due_at":       self.deletion_due_at.isoformat()
-                                     if self.deletion_due_at else None,
+            "created_at":            iso_utc(self.created_at),
+            "deletion_requested_at": iso_utc(self.deletion_requested_at),
+            "deletion_due_at":       iso_utc(self.deletion_due_at),
         }
 
     def __repr__(self):
@@ -93,7 +93,7 @@ class Income(db.Model):
     amount      = db.Column(db.Float, nullable=False)
     income_type = db.Column(db.String(50), nullable=False, default="monthly")
     description = db.Column(db.String(255), nullable=True)
-    date_added  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    date_added  = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     def to_dict(self) -> dict:
         return {
@@ -102,7 +102,7 @@ class Income(db.Model):
             "amount":      self.amount,
             "income_type": self.income_type,
             "description": self.description,
-            "date_added":  self.date_added.isoformat(),
+            "date_added":  iso_utc(self.date_added),
         }
 
     def __repr__(self):
@@ -121,7 +121,7 @@ class Expense(db.Model):
     description         = db.Column(db.String(255), nullable=True)
     expense_type        = db.Column(db.String(20), nullable=False, default="daily")
     recurrence_interval = db.Column(db.String(20), nullable=True)
-    date_added          = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    date_added          = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     def to_dict(self) -> dict:
         return {
@@ -132,7 +132,7 @@ class Expense(db.Model):
             "description":          self.description,
             "expense_type":         self.expense_type,
             "recurrence_interval":  self.recurrence_interval,
-            "date_added":           self.date_added.isoformat(),
+            "date_added":           iso_utc(self.date_added),
         }
 
     def __repr__(self):
@@ -149,7 +149,7 @@ class Budget(db.Model):
     category   = db.Column(db.String(50), nullable=False)
     limit      = db.Column(db.Float, nullable=False)
     month_year = db.Column(db.String(7), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "category", "month_year", name="uq_user_category_month"),
@@ -178,7 +178,7 @@ class SavingsGoal(db.Model):
     name        = db.Column(db.String(100), nullable=False)
     goal_amount = db.Column(db.Float, nullable=False)
     due_date    = db.Column(db.Date, nullable=False)
-    date_set    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    date_set    = db.Column(db.DateTime, default=utc_now, nullable=False)
     is_active   = db.Column(db.Boolean, default=True, nullable=False)
 
     contributions = db.relationship(
@@ -196,8 +196,8 @@ class SavingsGoal(db.Model):
             "name":              self.name,
             "goal_amount":       self.goal_amount,
             "total_contributed": self.total_contributed,
-            "due_date":          self.due_date.isoformat(),
-            "date_set":          self.date_set.isoformat(),
+            "due_date":          self.due_date.isoformat(),   # calendar date, no timezone
+            "date_set":          iso_utc(self.date_set),
             "is_active":         self.is_active,
         }
 
@@ -215,7 +215,7 @@ class GoalContribution(db.Model):
     user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     amount     = db.Column(db.Float, nullable=False)
     note       = db.Column(db.String(255), nullable=True)
-    date_added = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    date_added = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     def to_dict(self) -> dict:
         return {
@@ -224,7 +224,7 @@ class GoalContribution(db.Model):
             "user_id":    self.user_id,
             "amount":     self.amount,
             "note":       self.note,
-            "date_added": self.date_added.isoformat(),
+            "date_added": iso_utc(self.date_added),
         }
 
     def __repr__(self):
@@ -240,7 +240,7 @@ class UserCategory(db.Model):
     id         = db.Column(db.Integer, primary_key=True)
     user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name       = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "name", name="uq_user_category_name"),
@@ -250,7 +250,7 @@ class UserCategory(db.Model):
         return {
             "id":         self.id,
             "name":       self.name,
-            "created_at": self.created_at.isoformat(),
+            "created_at": iso_utc(self.created_at),
             "is_custom":  True,
         }
 
@@ -273,7 +273,7 @@ class UserIncomeType(db.Model):
     id         = db.Column(db.Integer, primary_key=True)
     user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     name       = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "name", name="uq_user_income_type_name"),
@@ -283,7 +283,7 @@ class UserIncomeType(db.Model):
         return {
             "id":         self.id,
             "name":       self.name,
-            "created_at": self.created_at.isoformat(),
+            "created_at": iso_utc(self.created_at),
             "is_custom":  True,
         }
 
@@ -301,15 +301,15 @@ class Guardian(db.Model):
     phone_number  = db.Column(db.String(20), nullable=False)
     is_active     = db.Column(db.Boolean, default=True, nullable=False)
     last_notified = db.Column(db.DateTime, nullable=True)
-    created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at    = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     def to_dict(self) -> dict:
         return {
             "id":            self.id,
             "phone_number":  self.phone_number,
             "is_active":     self.is_active,
-            "last_notified": self.last_notified.isoformat() if self.last_notified else None,
-            "created_at":    self.created_at.isoformat(),
+            "last_notified": iso_utc(self.last_notified),
+            "created_at":    iso_utc(self.created_at),
         }
 
     def __repr__(self):
@@ -326,7 +326,7 @@ class GuardianReport(db.Model):
     report_text = db.Column(db.Text, nullable=False)
     score       = db.Column(db.Integer, nullable=False)
     trigger     = db.Column(db.String(10), nullable=False)
-    created_at  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at  = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     def to_dict(self) -> dict:
         return {
@@ -334,7 +334,7 @@ class GuardianReport(db.Model):
             "report_text": self.report_text,
             "score":       self.score,
             "trigger":     self.trigger,
-            "created_at":  self.created_at.isoformat(),
+            "created_at":  iso_utc(self.created_at),
         }
 
     def __repr__(self):
@@ -353,8 +353,8 @@ class HelbPlan(db.Model):
     start_date    = db.Column(db.Date, nullable=False)
     end_date      = db.Column(db.Date, nullable=False)
     allocations   = db.Column(db.Text, nullable=False, default="{}")
-    created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at    = db.Column(db.DateTime, default=utc_now, nullable=False)
+    updated_at    = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     def get_allocations(self) -> dict:
         try:
@@ -370,11 +370,11 @@ class HelbPlan(db.Model):
             "id":            self.id,
             "semester_name": self.semester_name,
             "helb_amount":   self.helb_amount,
-            "start_date":    self.start_date.isoformat(),
-            "end_date":      self.end_date.isoformat(),
+            "start_date":    self.start_date.isoformat(),   # calendar date, no timezone
+            "end_date":      self.end_date.isoformat(),     # calendar date, no timezone
             "allocations":   self.get_allocations(),
-            "created_at":    self.created_at.isoformat(),
-            "updated_at":    self.updated_at.isoformat(),
+            "created_at":    iso_utc(self.created_at),
+            "updated_at":    iso_utc(self.updated_at),
         }
 
     def __repr__(self):

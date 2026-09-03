@@ -7,7 +7,8 @@ from typing import Optional
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from sqlalchemy import extract
+
+from app_time import app_now, month_range_utc, utc_now
 
 from models import (db, User, Income, Expense, Budget, SavingsGoal,
                     GoalContribution, HelbPlan, UserCategory, UserIncomeType,
@@ -95,7 +96,7 @@ FUTURE_TIMESTAMP_SLACK = timedelta(hours=24)
 
 
 def is_future_timestamp(moment: datetime) -> bool:
-    return moment > datetime.utcnow() + FUTURE_TIMESTAMP_SLACK
+    return moment > utc_now() + FUTURE_TIMESTAMP_SLACK
 
 
 MIN_PASSWORD_LENGTH = 6
@@ -122,7 +123,7 @@ def _verify_google_token(id_token_str: str) -> Optional[dict]:
 
 
 def _purge_expired_deletions():
-    cutoff = datetime.utcnow() - timedelta(hours=DELETION_GRACE_HOURS)
+    cutoff = utc_now() - timedelta(hours=DELETION_GRACE_HOURS)
     expired = User.query.filter(
         User.deletion_requested_at != None,
         User.deletion_requested_at <= cutoff,
@@ -219,7 +220,7 @@ def forgot_password():
     if user:
         code                    = f"{random.randint(0, 999999):06d}"
         user.reset_token        = code
-        user.reset_token_expiry = datetime.utcnow() + timedelta(minutes=60)
+        user.reset_token_expiry = utc_now() + timedelta(minutes=60)
         db.session.commit()
         send_reset_email(email, user.username, code)
     return success({"message": "If that email is registered, a reset code has been sent. Check your inbox and spam folder."})
@@ -241,7 +242,7 @@ def reset_password_endpoint():
         return error("Invalid or expired reset code.", 400)
     if user.reset_token != code:
         return error("Incorrect reset code.", 400)
-    if user.reset_token_expiry < datetime.utcnow():
+    if user.reset_token_expiry < utc_now():
         return error("Reset code has expired. Please request a new one.", 400)
     user.set_password(new_password)
     user.reset_token        = None
@@ -300,7 +301,7 @@ def request_account_deletion():
         return error("Incorrect password.", 401)
     if user.is_pending_deletion:
         return error("Account deletion is already scheduled.", 400)
-    user.deletion_requested_at = datetime.utcnow()
+    user.deletion_requested_at = utc_now()
     db.session.commit()
     return success({
         "message":         f"Account scheduled for deletion in {DELETION_GRACE_HOURS} hours.",
@@ -464,12 +465,13 @@ def add_income():
 @jwt_required()
 def get_income():
     user_id = int(get_jwt_identity())
-    month   = request.args.get("month", datetime.utcnow().month, type=int)
-    year    = request.args.get("year",  datetime.utcnow().year,  type=int)
+    month   = request.args.get("month", app_now().month, type=int)
+    year    = request.args.get("year",  app_now().year,  type=int)
+    period_start, period_end = month_range_utc(year, month)
     records = Income.query.filter(
         Income.user_id == user_id,
-        extract("month", Income.date_added) == month,
-        extract("year",  Income.date_added) == year,
+        Income.date_added >= period_start,
+        Income.date_added <  period_end,
     ).order_by(Income.date_added.desc()).all()
     return success({"income": [r.to_dict() for r in records]})
 
@@ -562,12 +564,13 @@ def add_expense():
 @jwt_required()
 def get_expenses():
     user_id = int(get_jwt_identity())
-    month   = request.args.get("month", datetime.utcnow().month, type=int)
-    year    = request.args.get("year",  datetime.utcnow().year,  type=int)
+    month   = request.args.get("month", app_now().month, type=int)
+    year    = request.args.get("year",  app_now().year,  type=int)
+    period_start, period_end = month_range_utc(year, month)
     records = Expense.query.filter(
         Expense.user_id == user_id,
-        extract("month", Expense.date_added) == month,
-        extract("year",  Expense.date_added) == year,
+        Expense.date_added >= period_start,
+        Expense.date_added <  period_end,
     ).order_by(Expense.date_added.desc()).all()
     return success({"expenses": [r.to_dict() for r in records]})
 
@@ -659,7 +662,7 @@ def set_budget():
     data       = body()
     category   = data.get("category")
     limit      = positive_amount(data.get("limit"))
-    month_year = data.get("month_year", datetime.utcnow().strftime("%Y-%m"))
+    month_year = data.get("month_year", app_now().strftime("%Y-%m"))
     if not category or limit is None:
         return error("Category and a valid limit are required.")
     existing = Budget.query.filter_by(user_id=user_id, category=category, month_year=month_year).first()
@@ -675,7 +678,7 @@ def set_budget():
 @jwt_required()
 def get_budgets():
     user_id    = int(get_jwt_identity())
-    month_year = request.args.get("month_year", datetime.utcnow().strftime("%Y-%m"))
+    month_year = request.args.get("month_year", app_now().strftime("%Y-%m"))
     records    = Budget.query.filter_by(user_id=user_id, month_year=month_year).all()
     return success({"budgets": [r.to_dict() for r in records]})
 
@@ -760,12 +763,13 @@ def get_contributions(goal_id):
 @jwt_required()
 def get_all_contributions():
     user_id = int(get_jwt_identity())
-    month   = request.args.get("month", datetime.utcnow().month, type=int)
-    year    = request.args.get("year",  datetime.utcnow().year,  type=int)
+    month   = request.args.get("month", app_now().month, type=int)
+    year    = request.args.get("year",  app_now().year,  type=int)
+    period_start, period_end = month_range_utc(year, month)
     contributions = GoalContribution.query.filter(
         GoalContribution.user_id == user_id,
-        extract("month", GoalContribution.date_added) == month,
-        extract("year",  GoalContribution.date_added) == year,
+        GoalContribution.date_added >= period_start,
+        GoalContribution.date_added <  period_end,
     ).order_by(GoalContribution.date_added.desc()).all()
     result = []
     for c in contributions:
@@ -784,8 +788,8 @@ def get_all_contributions():
 def analyze():
     user_id = int(get_jwt_identity())
     data    = body()
-    month   = data.get("month", datetime.utcnow().month)
-    year    = data.get("year",  datetime.utcnow().year)
+    month   = data.get("month", app_now().month)
+    year    = data.get("year",  app_now().year)
     payload = compute_analysis_payload(user_id, month, year)
     result  = run_analysis(payload)
     auto_notify_status = None
@@ -864,8 +868,8 @@ def guardian_notify():
     if not guardian:
         return error("No active guardian linked.", 404)
     data  = body()
-    month = data.get("month", datetime.utcnow().month)
-    year  = data.get("year",  datetime.utcnow().year)
+    month = data.get("month", app_now().month)
+    year  = data.get("year",  app_now().year)
     payload     = compute_analysis_payload(user_id, month, year)
     result      = run_analysis(payload)
     user        = User.query.get(user_id)
@@ -929,7 +933,7 @@ def save_helb_plan():
         plan.start_date    = start_date
         plan.end_date      = end_date
         plan.allocations   = _json.dumps(allocations)
-        plan.updated_at    = datetime.utcnow()
+        plan.updated_at    = utc_now()
     else:
         plan = HelbPlan(user_id=user_id, semester_name=semester_name,
                         helb_amount=helb_amount, start_date=start_date,

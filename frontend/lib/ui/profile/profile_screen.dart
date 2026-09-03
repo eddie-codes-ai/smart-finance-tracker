@@ -499,7 +499,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _formatDate(String isoDate) {
-    try { final dt = DateTime.parse(isoDate); return '${_monthName(dt.month)} ${dt.year}'; }
+    try { final dt = DateTime.parse(isoDate).toLocal(); return '${_monthName(dt.month)} ${dt.year}'; }
     catch (_) { return isoDate; }
   }
 

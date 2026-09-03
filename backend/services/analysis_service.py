@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, date
-from sqlalchemy import extract
+from app_time import app_now, app_today, local_date_of, month_range_utc
 from models import db, Income, Expense, Budget, SavingsGoal, GoalContribution
 
 
@@ -25,21 +25,23 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
         dict of all computed fields expected by run_analysis() plus
         extra fields returned to Flutter (savings, balance, daily_budget, etc.)
     """
-    now   = datetime.utcnow()
+    now   = app_now()
     month = month or now.month
     year  = year  or now.year
 
     # ── Fetch records for the requested period ────────────────────────────────
+    period_start, period_end = month_range_utc(year, month)
+
     income_records = Income.query.filter(
         Income.user_id == user_id,
-        extract("month", Income.date_added) == month,
-        extract("year",  Income.date_added) == year,
+        Income.date_added >= period_start,
+        Income.date_added <  period_end,
     ).all()
 
     expense_records = Expense.query.filter(
         Expense.user_id == user_id,
-        extract("month", Expense.date_added) == month,
-        extract("year",  Expense.date_added) == year,
+        Expense.date_added >= period_start,
+        Expense.date_added <  period_end,
     ).all()
 
     budget_records = Budget.query.filter(
@@ -108,16 +110,18 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     # ── Trend detection — compare with previous month ─────────────────────────
     prev_month, prev_year = (month - 1, year) if month > 1 else (12, year - 1)
 
+    prev_start, prev_end = month_range_utc(prev_year, prev_month)
+
     prev_income_records = Income.query.filter(
         Income.user_id == user_id,
-        extract("month", Income.date_added) == prev_month,
-        extract("year",  Income.date_added) == prev_year,
+        Income.date_added >= prev_start,
+        Income.date_added <  prev_end,
     ).all()
 
     prev_expense_records = Expense.query.filter(
         Expense.user_id == user_id,
-        extract("month", Expense.date_added) == prev_month,
-        extract("year",  Expense.date_added) == prev_year,
+        Expense.date_added >= prev_start,
+        Expense.date_added <  prev_end,
         Expense.expense_type != "one-time",
     ).all()
 
@@ -175,10 +179,12 @@ def _calculate_overspent_days(expenses: list, daily_budget: float) -> int:
     """Count days where total spending exceeded the daily budget."""
     if daily_budget <= 0:
         return 0
+    # Bucket by LOCAL day: an expense at 01:00 EAT is stored as 22:00 UTC the
+    # previous day, and grouping on the raw UTC date files it against the wrong
+    # day, skewing the overspending penalties.
     daily_totals = defaultdict(float)
     for e in expenses:
-        day = e.date_added.date()
-        daily_totals[day] += e.amount
+        daily_totals[local_date_of(e.date_added)] += e.amount
     return sum(1 for total in daily_totals.values() if total > daily_budget)
 
 
@@ -188,7 +194,7 @@ def _calculate_overspending_streak(expenses: list, daily_budget: float) -> int:
         return 0
     daily_totals = defaultdict(float)
     for e in expenses:
-        daily_totals[e.date_added.date()] += e.amount
+        daily_totals[local_date_of(e.date_added)] += e.amount
 
     streak = max_streak = 0
     for day in sorted(daily_totals.keys()):
@@ -232,7 +238,7 @@ def _evaluate_goal_health(goal: SavingsGoal, contributed: float) -> str:
     if not goal:
         return "No savings goal set."
 
-    today       = datetime.utcnow().date()
+    today       = app_today()
     total_days  = (goal.due_date - goal.date_set.date()).days
     days_passed = (today - goal.date_set.date()).days
 
@@ -307,7 +313,7 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
         return 0
 
     streak = 0
-    now    = datetime.utcnow()
+    now    = app_now()
 
     for i in range(1, 13):
         m = now.month - i
@@ -316,10 +322,11 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal) -> int:
             m += 12
             y -= 1
 
+        streak_start, streak_end = month_range_utc(y, m)
         inc = Income.query.filter(
             Income.user_id == user_id,
-            extract("month", Income.date_added) == m,
-            extract("year",  Income.date_added) == y,
+            Income.date_added >= streak_start,
+            Income.date_added <  streak_end,
         ).all()
 
         if not inc:

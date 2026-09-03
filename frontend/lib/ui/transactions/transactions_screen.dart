@@ -215,7 +215,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   Widget _buildContributionTile(_TxItem t) {
     final cs = Theme.of(context).colorScheme;
     final fmt = NumberFormat('#,##0.00', 'en_US');
-    final dateFmt = DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date));
+    final dateFmt = DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date).toLocal());
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -286,7 +286,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   Widget _buildTxTile(_TxItem t, {VoidCallback? onEdit}) {
     final cs = Theme.of(context).colorScheme;
     final fmt = NumberFormat('#,##0.00', 'en_US');
-    final dateFmt = DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date));
+    final dateFmt = DateFormat('dd MMM, hh:mm a').format(DateTime.parse(t.date).toLocal());
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

@@ -64,7 +64,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
           ? e.expenseType
           : AppConstants.expenseTypes.first;
       _selectedIncomeType  = 'other';
-      _originalDate        = DateTime.tryParse(e.dateAdded) ?? DateTime.now();
+      _originalDate        = DateTime.tryParse(e.dateAdded)?.toLocal() ?? DateTime.now();
     } else {
       final i = widget.income!;
       _amountController    = TextEditingController(text: i.amount.toStringAsFixed(2));
@@ -72,7 +72,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       _selectedCategory    = 'Other';
       _selectedExpenseType = AppConstants.expenseTypes.first;
       _selectedIncomeType  = i.incomeType;
-      _originalDate        = DateTime.tryParse(i.dateAdded) ?? DateTime.now();
+      _originalDate        = DateTime.tryParse(i.dateAdded)?.toLocal() ?? DateTime.now();
     }
     _selectedDate = _originalDate;
   }

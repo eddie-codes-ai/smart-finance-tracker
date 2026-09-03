@@ -123,7 +123,7 @@ class IncomeProvider extends ChangeNotifier {
 
   /// True if the record still falls inside the month/year this provider holds.
   bool _isInLoadedPeriod(IncomeModel record) {
-    final date = DateTime.tryParse(record.dateAdded);
+    final date = DateTime.tryParse(record.dateAdded)?.toLocal();
     if (date == null) return true; // unparseable — keep it rather than hide it
     return date.month == _month && date.year == _year;
   }

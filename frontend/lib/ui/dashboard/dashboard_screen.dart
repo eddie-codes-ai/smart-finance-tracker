@@ -528,7 +528,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemBuilder: (context, index) {
         final t = recent[index];
         final fmt = NumberFormat('#,##0.00', 'en_US');
-        final dateFmt = DateFormat('dd MMM').format(DateTime.parse(t.date));
+        final dateFmt = DateFormat('dd MMM').format(DateTime.parse(t.date).toLocal());
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

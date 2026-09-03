@@ -134,7 +134,7 @@ class _HelbPlannerScreenState extends State<HelbPlannerScreen>
         final body     = await ApiClient.getExpenses(month: ym['month']!, year: ym['year']!);
         final expenses = body['expenses'] as List<dynamic>;
         for (final e in expenses) {
-          final d = DateTime.parse(e['date_added'] as String);
+          final d = DateTime.parse(e['date_added'] as String).toLocal();
           if (!d.isBefore(plan.startDate) && !d.isAfter(plan.endDate) && e['expense_type'] != 'one-time') {
             final cat = e['category'] as String;
             totals[cat] = (totals[cat] ?? 0.0) + (e['amount'] as num).toDouble();

@@ -1,4 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+from app_time import utc_now
 from models import db, Guardian, GuardianReport
 
 
@@ -43,7 +45,7 @@ def can_auto_notify(guardian: Guardian) -> bool:
     """
     if guardian.last_notified is None:
         return True
-    return (datetime.utcnow() - guardian.last_notified) >= timedelta(hours=COOLDOWN_HOURS)
+    return (utc_now() - guardian.last_notified) >= timedelta(hours=COOLDOWN_HOURS)
 
 
 def build_guardian_report(username: str, analysis_result: dict, payload: dict) -> str:
@@ -94,7 +96,7 @@ def save_report(user_id: int, report_text: str, score: int, trigger: str) -> Gua
 
     guardian = Guardian.query.filter_by(user_id=user_id, is_active=True).first()
     if guardian:
-        guardian.last_notified = datetime.utcnow()
+        guardian.last_notified = utc_now()
 
     db.session.commit()
     return report

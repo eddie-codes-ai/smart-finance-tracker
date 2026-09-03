@@ -134,14 +134,12 @@ class ApiClient {
     return {'month': month ?? now.month, 'year': year ?? now.year};
   }
 
-  /// Serializes a DateTime as an ISO 8601 string with no timezone designator.
+  /// Serializes a DateTime as UTC, which is the only frame the server stores.
   ///
-  /// Timestamps round-trip through this app as plain wall-clock text: the
-  /// server stores naive datetimes, and every screen reads them back with
-  /// DateTime.parse(), which applies no conversion. Sending an offset would
-  /// put this one value in a different frame from every other row.
-  static String _isoLocal(DateTime moment) =>
-      (moment.isUtc ? moment.toLocal() : moment).toIso8601String();
+  /// The user picks a date in their own time; sending that wall-clock reading
+  /// unconverted would file it three hours out, because the server reads every
+  /// incoming timestamp as UTC.
+  static String _isoUtc(DateTime moment) => moment.toUtc().toIso8601String();
 
   static String _monthYear(String? monthYear) {
     if (monthYear != null) return monthYear;
@@ -282,7 +280,7 @@ class ApiClient {
       if (amount != null) 'amount': amount,
       if (incomeType != null) 'income_type': incomeType,
       if (description != null) 'description': description,
-      if (dateAdded != null) 'date_added': _isoLocal(dateAdded),
+      if (dateAdded != null) 'date_added': _isoUtc(dateAdded),
     });
   }
 
@@ -329,7 +327,7 @@ class ApiClient {
       if (category != null) 'category': category,
       if (description != null) 'description': description,
       if (expenseType != null) 'expense_type': expenseType,
-      if (dateAdded != null) 'date_added': _isoLocal(dateAdded),
+      if (dateAdded != null) 'date_added': _isoUtc(dateAdded),
     });
   }
 
