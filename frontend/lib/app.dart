@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'core/theme.dart';
 import 'core/routes.dart';
 import 'data/remote/api_client.dart';
+import 'ui/lock/app_lock_gate.dart';
 import 'providers/auth_provider.dart';
 import 'providers/income_provider.dart';
 import 'providers/expense_provider.dart';
@@ -81,6 +82,10 @@ class _AppState extends State<App> {
             themeMode:  themeProvider.themeMode,
             initialRoute: AppRoutes.splash,
             routes: AppRoutes.routes,
+            // Wraps every route, so the lock covers the app wherever the user
+            // happens to be — including the recent-apps thumbnail.
+            builder: (context, child) =>
+                AppLockGate(child: child ?? const SizedBox.shrink()),
           );
         },
       ),

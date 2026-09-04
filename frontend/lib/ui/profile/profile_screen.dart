@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/app_lock.dart';
 import '../../core/device_timezone.dart';
 import '../../core/theme.dart';
 import '../../data/remote/api_client.dart';
@@ -28,6 +29,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _deviceZone;
   bool _loadingZones     = false;
   bool _savingTimezone   = false;
+
+  // Biometric app lock.
+  bool _lockAvailable    = false;   // the device can authenticate at all
+  bool _lockHasBiometric = false;   // ...with a fingerprint or face, not just a PIN
+  bool _lockEnabled      = false;
+  bool _togglingLock     = false;
 
   final _usernameCtrl        = TextEditingController();
   final _emailCtrl           = TextEditingController();
@@ -55,6 +62,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     DeviceTimezone.current().then((zone) {
       if (mounted) setState(() => _deviceZone = zone);
     });
+    _loadLockState();
+  }
+
+  Future<void> _loadLockState() async {
+    final available = await AppLock.isAvailable();
+    final biometric = available && await AppLock.hasBiometrics();
+    final enabled   = await AppLock.isEnabled();
+    if (!mounted) return;
+    setState(() {
+      _lockAvailable    = available;
+      _lockHasBiometric = biometric;
+      _lockEnabled      = enabled;
+    });
+  }
+
+  Future<void> _toggleLock(bool value) async {
+    setState(() => _togglingLock = true);
+
+    // Prove the lock works before switching it on. Enabling it blind would let
+    // someone turn on a lock their device cannot actually satisfy and find out
+    // the next time they open the app.
+    if (value) {
+      final ok = await AppLock.authenticate(
+          reason: 'Confirm to turn on the app lock');
+      if (!mounted) return;
+      if (!ok) {
+        setState(() => _togglingLock = false);
+        _showSnackBar('Could not verify it is you, so the lock was left off.',
+            isError: true);
+        return;
+      }
+    }
+
+    await AppLock.setEnabled(value);
+    if (!mounted) return;
+    setState(() { _lockEnabled = value; _togglingLock = false; });
+    _showSnackBar(value ? 'App lock turned on.' : 'App lock turned off.');
   }
 
   @override
@@ -275,6 +319,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (_timezoneExpanded) _loadZones();
               },
               child: _buildTimezoneForm(user?.timezone ?? 'Africa/Nairobi')),
+          const SizedBox(height: 12),
+
+          _buildAppLockRow(),
 
           const SizedBox(height: 32),
 
@@ -493,6 +540,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Divider(height: 1),
           Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 20), child: child),
         ],
+      ]),
+    );
+  }
+
+  Widget _buildAppLockRow() {
+    final cs = Theme.of(context).colorScheme;
+
+    if (!_lockAvailable) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: cs.surface, borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+              blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Icon(Icons.fingerprint, color: cs.onSurface.withOpacity(0.35), size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('App Lock', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.5))),
+            const SizedBox(height: 2),
+            Text('This device has no fingerprint, face unlock or screen lock set up.',
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5))),
+          ])),
+        ]),
+      );
+    }
+
+    final method = _lockHasBiometric ? 'fingerprint or face' : 'screen lock';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surface, borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+            blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Row(children: [
+        const Icon(Icons.fingerprint, color: AppTheme.primary, size: 22),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('App Lock', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+              color: cs.onSurface)),
+          const SizedBox(height: 2),
+          Text('Ask for your $method before showing your finances',
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+        ])),
+        if (_togglingLock)
+          const Padding(padding: EdgeInsets.only(right: 8),
+              child: SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2)))
+        else
+          Switch(value: _lockEnabled, onChanged: _toggleLock),
       ]),
     );
   }
