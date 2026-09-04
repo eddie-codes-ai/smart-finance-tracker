@@ -79,6 +79,33 @@ class BudgetProvider extends ChangeNotifier {
     }
   }
 
+  /// Remove a category's budget for the loaded month.
+  ///
+  /// Returns true on success; on failure [errorMessage] says why and the list
+  /// is left untouched.
+  Future<bool> deleteBudget({
+    required String category,
+    String? monthYear,
+  }) async {
+    final targetMonth = monthYear ?? _monthYear;
+    _setLoading(true);
+    try {
+      await ApiClient.deleteBudget(category: category, monthYear: targetMonth);
+      _budgets.removeWhere(
+          (b) => b.category == category && b.monthYear == targetMonth);
+      _errorMessage = null;
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to remove budget. Check your connection.';
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   static String _currentMonthYear() {
     final now = DateTime.now();

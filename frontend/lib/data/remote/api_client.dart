@@ -480,6 +480,15 @@ class ApiClient {
     });
   }
 
+  /// Remove a category's budget for one month.
+  static Future<Map<String, dynamic>> deleteBudget({
+    required String category,
+    String? monthYear,
+  }) {
+    return _send('DELETE', '/budgets/${Uri.encodeComponent(category)}',
+        query: {'month_year': _monthYear(monthYear)});
+  }
+
   static Future<Map<String, dynamic>> getBudgets({String? monthYear}) {
     return _send('GET', '/budgets', query: {'month_year': _monthYear(monthYear)});
   }

@@ -19,7 +19,7 @@ from engine.knowledge_engine import run_analysis
 from services.analysis_service import compute_analysis_payload
 from services.email_service import send_reset_email
 from services.guardian_service import (
-    get_guardian, link_guardian, unlink_guardian,
+    get_guardian, link_guardian, normalise_phone, unlink_guardian,
     build_guardian_report, save_report, get_latest_report, can_auto_notify
 )
 from services.notification_service import dispatch
@@ -1000,6 +1000,29 @@ def get_budgets():
     return success({"budgets": [r.to_dict() for r in records]})
 
 
+@api.route("/budgets/<string:category>", methods=["DELETE"])
+@jwt_required()
+def delete_budget(category: str):
+    """
+    DELETE /api/budgets/<category>?month_year=YYYY-MM
+
+    Budgets could be created and edited but never removed, so a limit set once
+    on a category was permanent - the only way out was raising it to something
+    meaningless. Scoped to one month, because that is how budgets are keyed.
+    """
+    user_id    = int(get_jwt_identity())
+    month_year = request.args.get("month_year", now_in(current_user_tz()).strftime("%Y-%m"))
+
+    record = Budget.query.filter_by(user_id=user_id, category=category,
+                                    month_year=month_year).first()
+    if not record:
+        return error("No budget found for that category this month.", 404)
+
+    db.session.delete(record)
+    db.session.commit()
+    return success({"message": f"Budget for '{category}' removed."})
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SAVINGS GOALS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1170,7 +1193,13 @@ def guardian_link():
     phone_number = data.get("phone_number", "").strip()
     if not phone_number:
         return error("Phone number is required.")
-    guardian = link_guardian(user_id, phone_number)
+
+    normalised = normalise_phone(phone_number)
+    if not normalised:
+        return error("That does not look like a valid phone number. Use a format "
+                     "like 0712345678 or +254712345678.")
+
+    guardian = link_guardian(user_id, normalised)
     return success({"message": "Guardian linked.", "guardian": guardian.to_dict()}, 201)
 
 

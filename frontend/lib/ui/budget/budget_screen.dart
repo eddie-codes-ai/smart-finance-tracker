@@ -41,6 +41,37 @@ class _BudgetScreenState extends State<BudgetScreen> {
     await _loadData();
   }
 
+  Future<void> _confirmRemoveBudget(String category) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Budget'),
+        content: Text('Remove the budget for $category this month? '
+            'Your spending records are not affected.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+              child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final budgets   = context.read<BudgetProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final removed   = await budgets.deleteBudget(category: category);
+    if (!mounted) return;
+
+    messenger.showSnackBar(SnackBar(
+      content: Text(removed
+          ? 'Budget for $category removed.'
+          : budgets.errorMessage ?? 'Could not remove that budget.'),
+      backgroundColor: removed ? AppTheme.primary : AppTheme.error,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final budget = context.watch<BudgetProvider>();
@@ -169,6 +200,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, AppRoutes.addBudget,
           arguments: {'category': category, 'currentLimit': limit}).then((_) => _refresh()),
+      // Long-press to remove, the same gesture the transactions list uses.
+      // A budget could previously be created and edited but never deleted.
+      onLongPress: () => _confirmRemoveBudget(category),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
