@@ -75,3 +75,41 @@ jobs:
       - name: Run tests
         working-directory: frontend
         run: flutter test
+
+  android-build:
+    name: Android build
+    runs-on: ubuntu-latest
+
+    # Separate job so a broken Gradle script is reported distinctly from a
+    # failing test, and so it runs in parallel rather than delaying the others.
+    #
+    # This exists because analyze and test do not compile Gradle files: a
+    # release signing config with Kotlin DSL errors passed CI green and only
+    # failed on a developer's machine at `flutter run`.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          # Matches sourceCompatibility/targetCompatibility in
+          # android/app/build.gradle.kts.
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: frontend
+        # Release rather than debug: the signing config only applies to the
+        # release build type, so this is what exercises the fallback to the
+        # debug key when key.properties is absent — which is the case on CI and
+        # on every fresh clone.
+        run: flutter build apk --release
