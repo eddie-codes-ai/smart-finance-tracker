@@ -1,0 +1,77 @@
+name: tests
+
+# 167 tests are worth considerably more when they run without anyone having to
+# remember to run them.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend (Python 3.9)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Pinned to 3.9 because Experta does not work on newer versions —
+          # the same reason the Dockerfile uses python:3.9-slim.
+          python-version: '3.9'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Check the migrations apply to an empty database
+        working-directory: backend
+        env:
+          FLASK_APP: app:create_app
+          DATABASE_URL: sqlite:///ci-check.db
+          JWT_SECRET_KEY: ci-only-not-a-real-secret
+        run: flask db upgrade
+
+      - name: Run the test suites
+        working-directory: backend
+        env:
+          JWT_SECRET_KEY: ci-only-not-a-real-secret
+        # Each file builds its own throwaway database and exits non-zero on
+        # failure, so a plain loop is enough — no pytest, no extra dependency.
+        run: |
+          status=0
+          for suite in tests/test_*.py; do
+            echo "── $suite"
+            python "$suite" || status=1
+          done
+          exit $status
+
+  frontend:
+    name: Frontend (Flutter)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: frontend
+        # Infos are tolerated (the codebase carries a few hundred deprecation
+        # notices); errors and warnings are not.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        working-directory: frontend
+        run: flutter test

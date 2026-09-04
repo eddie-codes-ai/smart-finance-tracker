@@ -5,6 +5,25 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing, read from android/key.properties (gitignored, so the
+// keystore password never enters the repository). Absent that file the build
+// falls back to the debug key, exactly as before, so a fresh clone still
+// builds — it just cannot produce a distributable APK.
+//
+// To create one:
+//   keytool -genkey -v -keystore ~/upload-keystore.jks -keyalg RSA \
+//           -keysize 2048 -validity 10000 -alias upload
+// then write android/key.properties:
+//   storeFile=C:/Users/you/upload-keystore.jks
+//   storePassword=...
+//   keyAlias=upload
+//   keyPassword=...
+val keystoreProperties = java.util.Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.smartfinance.smart_finance_tracker"
     compileSdk = flutter.compileSdkVersion
@@ -31,11 +50,28 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String?
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // A real key when key.properties is present, the debug key when it
+            // is not. Play Store will reject a debug-signed upload, so this has
+            // to be configured before distribution — but leaving the fallback
+            // means nothing breaks for anyone just running the app.
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

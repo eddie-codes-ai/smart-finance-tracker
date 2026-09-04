@@ -10,7 +10,9 @@ frontend/.dart_tool/
 frontend/.flutter-plugins
 frontend/.flutter-plugins-dependencies
 frontend/.packages
-frontend/pubspec.lock
+# pubspec.lock is intentionally NOT ignored. That is right for a package, wrong
+# for an application: without it this machine and CI can resolve different
+# dependency versions and build subtly different apps.
 
 # Android build artifacts
 frontend/android/.gradle/
