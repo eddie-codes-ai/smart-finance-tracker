@@ -1,4 +1,6 @@
+import re
 from datetime import timedelta
+from typing import Optional
 
 from app_time import utc_now
 from models import db, Guardian, GuardianReport
@@ -12,10 +14,52 @@ def get_guardian(user_id: int):
     return Guardian.query.filter_by(user_id=user_id, is_active=True).first()
 
 
+def normalise_phone(raw: str) -> Optional[str]:
+    """
+    Validate and normalise a guardian's phone number to E.164, or None.
+
+    Nothing checked this before, so any string was stored: "_format_e164" would
+    turn "hello" into "+hello" and the problem only surfaced later, as an alert
+    that silently failed to send at the moment it was needed.
+
+    Kenyan local format (07xx / 01xx) is normalised to +254, matching what the
+    notification service does when it dials.
+    """
+    if not isinstance(raw, str):
+        return None
+
+    cleaned = re.sub(r"[\s()\-.]", "", raw.strip())
+    if not cleaned:
+        return None
+
+    if cleaned.startswith("+"):
+        digits, prefix = cleaned[1:], "+"
+    elif cleaned.startswith("0"):
+        # 0712345678 -> +254712345678. The local part has to be checked before
+        # the country code goes on, or a far-too-short number like "071234"
+        # becomes "25471234" and clears the general length check below.
+        if not (len(cleaned) == 10 and cleaned[1:].isdigit()):
+            return None
+        digits, prefix = "254" + cleaned[1:], "+"
+    else:
+        digits, prefix = cleaned, "+"
+
+    if not digits.isdigit():
+        return None
+    # E.164 allows up to 15 digits; a country code plus a subscriber number is
+    # never shorter than about 8.
+    if not (8 <= len(digits) <= 15):
+        return None
+
+    return prefix + digits
+
+
 def link_guardian(user_id: int, phone_number: str) -> Guardian:
     """
     Link a guardian to a student account.
     If one already exists, update the phone number and re-activate.
+
+    Expects an already-normalised number; the route validates before calling.
     """
     guardian = Guardian.query.filter_by(user_id=user_id).first()
     if guardian:
@@ -59,7 +103,12 @@ def build_guardian_report(username: str, analysis_result: dict, payload: dict) -
     savings     = payload.get("savings", 0)
     income      = payload.get("income", 0)
     expenses    = payload.get("expenses", 0)
-    day         = payload.get("day_of_month", datetime.now().day)
+    # No datetime fallback here: "today" is a per-user, timezone-dependent
+    # question this module cannot answer, and the payload always carries the
+    # value computed in the user's own zone. (This previously called
+    # datetime.now() against an import that had been removed, so the fallback
+    # path raised NameError rather than defaulting.)
+    day         = payload.get("day_of_month", "-")
     goal_health = payload.get("goal_health", "")
     period      = payload.get("period", "")
 

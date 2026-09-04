@@ -1,6 +1,10 @@
+import logging
 import os
+
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
+
+logger = logging.getLogger(__name__)
 
 
 def send_whatsapp(to_phone: str, message: str) -> dict:
@@ -42,7 +46,16 @@ def send_whatsapp(to_phone: str, message: str) -> dict:
         return {"success": True, "sid": msg.sid}
 
     except TwilioRestException as e:
+        # Twilio answered and refused: a bad number, an unverified sandbox
+        # recipient, no credit.
+        logger.warning("Twilio rejected the message: %s", e)
         return {"success": False, "error": str(e)}
+    except Exception as e:
+        # Never reached Twilio at all - DNS, a timeout, a malformed account SID.
+        # Callers are written against {"success": False, ...}, so raising here
+        # turned a network blip into an unhandled 500 mid-alert.
+        logger.exception("Could not reach Twilio")
+        return {"success": False, "error": "Could not reach the messaging service."}
 
 
 def send_sms(to_phone: str, message: str) -> dict:
@@ -81,7 +94,16 @@ def send_sms(to_phone: str, message: str) -> dict:
         return {"success": True, "sid": msg.sid}
 
     except TwilioRestException as e:
+        # Twilio answered and refused: a bad number, an unverified sandbox
+        # recipient, no credit.
+        logger.warning("Twilio rejected the message: %s", e)
         return {"success": False, "error": str(e)}
+    except Exception as e:
+        # Never reached Twilio at all - DNS, a timeout, a malformed account SID.
+        # Callers are written against {"success": False, ...}, so raising here
+        # turned a network blip into an unhandled 500 mid-alert.
+        logger.exception("Could not reach Twilio")
+        return {"success": False, "error": "Could not reach the messaging service."}
 
 
 def dispatch(to_phone: str, message: str) -> dict:
