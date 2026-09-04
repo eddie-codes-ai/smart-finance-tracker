@@ -165,6 +165,18 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
         category_totals[e.category] += e.amount
     category_variance = _calculate_category_variance(category_totals, budgets_dict)
 
+    # Budget adherence, straight off the variance already computed - no extra
+    # queries. Until now the entire budget feature had no effect on the score.
+    budgets_set, budget_overspend_ratio, budgets_breached = \
+        _summarise_budget_adherence(category_variance)
+
+    # Is the goal even reachable? Distinct from pace: an impossible target is
+    # permanently "behind", and telling the student to contribute more is
+    # useless advice.
+    goal_required_share = _calculate_goal_required_share(
+        primary_goal, primary_goal_contributed, total_income, tz)
+    goal_is_realistic = goal_required_share <= 0.75
+
     return {
         # ── Engine fields (go into knowledge_engine.run_analysis) ─────────────
         "has_income":                has_income,
@@ -178,9 +190,14 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
         "overspending_streak":       overspending_streak,
         "luxury_spending_ratio":     round(luxury_spending_ratio, 2),
         "luxury_expense_growth":     luxury_expense_growth,
+        "budgets_set":               budgets_set,
+        "budget_overspend_ratio":    round(budget_overspend_ratio, 3),
+        "budgets_breached":          budgets_breached,
         "goal_set":                  primary_goal is not None,
         "goal_progress":             round(goal_progress, 2),
         "goal_pace_ratio":           round(goal_pace_ratio, 3),
+        "goal_required_share":       round(goal_required_share, 3),
+        "goal_is_realistic":         goal_is_realistic,
         "goal_achievement_streak":   goal_achievement_streak,
         "day_of_month":              day_of_month,
         "spending_trend":            spending_trend,
@@ -455,6 +472,54 @@ def _calculate_goal_achievement_streak(user_id: int, goal: SavingsGoal, tz) -> i
             break
 
     return streak
+
+
+def _summarise_budget_adherence(category_variance: dict):
+    """
+    (how many budgets, spent / budgeted, how many breached).
+
+    Measures the limits the student chose, which is a different promise from
+    the daily-discipline family: that one checks income/30, a figure the app
+    derives. Someone can stay under that average every day and still break
+    every category budget.
+
+    Only the ratio is scored. The breach count shapes the advice wording, and
+    is deliberately not penalised - count and magnitude move together, so
+    charging for both would repeat the double-counting this engine was fixed
+    for.
+    """
+    if not category_variance:
+        return 0, 0.0, 0
+
+    total_budgeted = sum(v["budget"] for v in category_variance.values())
+    total_spent    = sum(v["spent"] for v in category_variance.values())
+    breached       = sum(1 for v in category_variance.values() if v["status"] == "over")
+
+    if total_budgeted <= 0:
+        return len(category_variance), 0.0, breached
+    return len(category_variance), total_spent / total_budgeted, breached
+
+
+def _calculate_goal_required_share(goal, contributed: float, monthly_income: float,
+                                   tz) -> float:
+    """
+    The monthly contribution the deadline demands, as a share of income.
+
+    0.0 when there is no goal, nothing left to save, or no income to measure
+    against - in each case there is nothing to judge as unrealistic.
+    """
+    if not goal or monthly_income <= 0:
+        return 0.0
+
+    remaining = goal.goal_amount - contributed
+    if remaining <= 0:
+        return 0.0            # already funded
+
+    days_left = (goal.due_date - today_in(tz)).days
+    # An overdue or same-day deadline demands the whole remainder at once.
+    months_left = max(days_left, 1) / 30.0
+    required_per_month = remaining / months_left
+    return required_per_month / monthly_income
 
 
 def _calculate_category_variance(category_totals: dict, budgets: dict) -> dict:

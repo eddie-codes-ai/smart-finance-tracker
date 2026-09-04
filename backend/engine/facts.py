@@ -54,6 +54,19 @@ class FinancialProfile(Fact):
     luxury_spending_ratio   = Field(float, mandatory=True)   # % of spend on luxuries
     luxury_expense_growth   = Field(str,   mandatory=True)   # increasing|stable|decreasing
 
+    # ── Budgets the student set for themselves ───────────────────────────────
+    # Distinct from overspent_days, which measures breaches of a daily average
+    # the app derives (income / 30). This measures the limits the student chose.
+    # Someone can stay under that average every day and still wreck every
+    # category budget.
+    budgets_set             = Field(int,   mandatory=True)   # how many exist
+    budget_overspend_ratio  = Field(float, mandatory=True)   # spent / budgeted; 1.0 is on budget
+    # How many individual limits were breached. Used ONLY to make the advice
+    # specific - never scored. Breach count and breach magnitude move together,
+    # so scoring both would re-introduce the double-counting this design exists
+    # to avoid.
+    budgets_breached        = Field(int,   mandatory=True)
+
     # ── Goals ────────────────────────────────────────────────────────────────
     goal_set                = Field(bool,  mandatory=True)
     goal_progress           = Field(float, mandatory=True)   # % of target, for display
@@ -62,6 +75,14 @@ class FinancialProfile(Fact):
     # saving 70% of income was labelled "Overspender" for having set one.
     goal_pace_ratio         = Field(float, mandatory=True)
     goal_achievement_streak = Field(int,   mandatory=True)   # consecutive months on pace
+
+    # What the deadline demands each month, as a share of income. Pace asks
+    # "are you keeping up"; this asks "was this ever achievable". A 50,000
+    # target due next month on 15,000 a month reads as "far behind pace" every
+    # month forever, and the advice tells the student to contribute more when
+    # no amount of contributing would work.
+    goal_required_share     = Field(float, mandatory=True)
+    goal_is_realistic       = Field(bool,  mandatory=True)
 
     # ── Direction of travel ──────────────────────────────────────────────────
     spending_trend          = Field(str,   mandatory=True)

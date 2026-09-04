@@ -44,6 +44,11 @@ def profile(**overrides):
         goal_progress=50.0,
         goal_pace_ratio=1.0,
         goal_achievement_streak=0,
+        goal_required_share=0.1,
+        goal_is_realistic=True,
+        budgets_set=3,
+        budget_overspend_ratio=0.8,
+        budgets_breached=0,
         day_of_month=20,
         spending_trend='stable',
     )
@@ -199,6 +204,117 @@ def test_goal_pace_ladder_is_monotonic():
         previous = current
 
 
+# ── Budgets the student set for themselves ────────────────────────────────────
+
+def test_breaching_your_budgets_costs_you():
+    """
+    The whole budget feature previously had no effect on the score: a student
+    could set limits on every category, breach them all, and nothing moved.
+    """
+    kept    = score_of(budgets_set=4, budget_overspend_ratio=0.8, budgets_breached=0)
+    breached = score_of(budgets_set=4, budget_overspend_ratio=1.4, budgets_breached=4)
+    assert breached < kept, "breaching every budget scored the same as keeping them"
+
+
+def test_budget_adherence_ladder_is_monotonic():
+    previous = -1
+    for ratio in [1.5, 1.15, 1.0, 0.7]:
+        current = score_of(budgets_set=4, budget_overspend_ratio=ratio)
+        assert current >= previous, "ratio %s scored %s vs %s" % (ratio, current, previous)
+        previous = current
+
+
+def test_setting_no_budgets_is_a_nudge_not_a_punishment():
+    none_set = score_of(budgets_set=0, budget_overspend_ratio=0.0, budgets_breached=0)
+    breached = score_of(budgets_set=4, budget_overspend_ratio=1.4, budgets_breached=4)
+    kept     = score_of(budgets_set=4, budget_overspend_ratio=0.8, budgets_breached=0)
+
+    assert none_set < kept, "not budgeting should cost a little"
+    assert none_set > breached, \
+        "not setting a budget scored worse than setting one and blowing through it"
+
+
+def test_budgets_do_not_disturb_the_savings_verdict():
+    for ratio in (0.5, 1.6):
+        text = joined(budgets_set=4, budget_overspend_ratio=ratio)
+        assert "good savings discipline" in text, \
+            "the savings verdict changed with budget adherence alone"
+
+
+def test_breach_count_alone_does_not_change_the_score():
+    """
+    Count and magnitude move together, so only magnitude is scored. Scoring
+    both would repeat the double-counting this engine was fixed for.
+    """
+    one_big  = score_of(budgets_set=4, budget_overspend_ratio=1.4, budgets_breached=1)
+    all_four = score_of(budgets_set=4, budget_overspend_ratio=1.4, budgets_breached=4)
+    assert one_big == all_four
+
+
+# ── Was the goal ever achievable? ─────────────────────────────────────────────
+
+def test_an_impossible_goal_is_charged_once_not_twice():
+    """
+    A target needing 90% of income is permanently "behind pace". Charging for
+    the target AND the pace would penalise one fact twice - and telling the
+    student to contribute more is useless advice.
+    """
+    result = run_analysis(profile(
+        goal_required_share=0.9, goal_is_realistic=False, goal_pace_ratio=0.05,
+    ))
+    text = " || ".join(result["advice"]).lower()
+
+    assert "move the deadline or lower the target" in text
+    assert "far behind the pace" not in text, \
+        "an unreachable goal was charged for its pace as well as its target"
+
+
+def test_an_impossible_goal_makes_no_pace_claim_at_all():
+    """
+    A goal created today has nothing expected of it yet, so the pace ratio is
+    1.0 and the positive pace rule fired - producing "move the deadline or
+    lower the target" immediately followed by "you are on track to hit your
+    savings goal". One goal, two contradictory statements.
+    """
+    for pace in (0.05, 1.0, 2.0):
+        text = " || ".join(run_analysis(profile(
+            goal_required_share=0.9, goal_is_realistic=False, goal_pace_ratio=pace,
+        ))["advice"]).lower()
+        assert "on track to hit your savings goal" not in text, \
+            "unreachable goal claimed to be on track (pace %s)" % pace
+        assert "well ahead of your savings goal" not in text, pace
+
+
+def test_a_realistic_goal_that_is_behind_still_counts():
+    on_pace = score_of(goal_required_share=0.1, goal_is_realistic=True,
+                       goal_pace_ratio=1.0)
+    behind  = score_of(goal_required_share=0.1, goal_is_realistic=True,
+                       goal_pace_ratio=0.1)
+    assert behind < on_pace, "a genuinely behind goal stopped counting"
+    assert "far behind the pace" in joined(goal_required_share=0.1,
+                                           goal_is_realistic=True,
+                                           goal_pace_ratio=0.1)
+
+
+def test_goal_demand_ladder_is_monotonic():
+    previous = -1
+    for share in [0.9, 0.6, 0.35, 0.1]:
+        current = score_of(goal_required_share=share, goal_is_realistic=share <= 0.75)
+        assert current >= previous, "share %s scored %s vs %s" % (share, current, previous)
+        previous = current
+
+
+def test_goal_realism_is_skipped_without_income():
+    """Nothing to measure the demand against."""
+    text = " || ".join(run_analysis(profile(
+        has_income=False, income=0.0, expenses=1000.0,
+        savings_rate=0.0, projected_spend_rate=0.0,
+        goal_required_share=0.0,
+    ))["advice"]).lower()
+    assert "three quarters of your income" not in text
+    assert "half your income each month" not in text
+
+
 # ── Each family is independent ────────────────────────────────────────────────
 
 def test_each_family_moves_the_score_on_its_own():
@@ -215,6 +331,8 @@ def test_each_family_moves_the_score_on_its_own():
         ("overspend streak", dict(overspending_streak=12)),
         ("luxury ratio",     dict(luxury_spending_ratio=70.0)),
         ("goal pace",        dict(goal_pace_ratio=0.1)),
+        ("goal realism",     dict(goal_required_share=0.9, goal_is_realistic=False)),
+        ("budget adherence", dict(budget_overspend_ratio=1.5, budgets_breached=4)),
         ("trend",            dict(spending_trend='worsening_fast')),
     ]:
         assert score_of(**worse) < baseline, "%s did not affect the score" % label

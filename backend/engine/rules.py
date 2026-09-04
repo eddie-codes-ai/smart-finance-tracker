@@ -278,6 +278,87 @@ class FinancialAdvisor(KnowledgeEngine):
                   "Non-essential spending is a smaller share than last period.")
 
     # =========================================================
+    # BUDGETS THE STUDENT SET FOR THEMSELVES
+    #
+    # Distinct from the daily-discipline family above, which measures breaches
+    # of income/30 - a figure the app derives. This measures the limits the
+    # student actually chose, which is a different promise. Until now the whole
+    # budget feature had no effect on the score whatsoever.
+    #
+    # Only the magnitude is scored. budgets_breached shapes the wording but
+    # carries no penalty of its own: count and magnitude move together, and
+    # charging for both would repeat the mistake this engine was just fixed for.
+    # =========================================================
+
+    @Rule(FinancialProfile(budgets_set=P(lambda n: n > 0),
+                           budget_overspend_ratio=P(lambda x: x > 1.25)))
+    def budget_far_over(self):
+        self.note(WARNING,
+                  "You have spent well past the budgets you set. Either the limits "
+                  "need to be realistic or the spending does.", 12)
+
+    @Rule(FinancialProfile(budgets_set=P(lambda n: n > 0),
+                           budget_overspend_ratio=P(lambda x: 1.05 < x <= 1.25)))
+    def budget_over(self):
+        self.note(WARNING,
+                  "You are over the budgets you set for yourself this period.", 7)
+
+    @Rule(FinancialProfile(budgets_set=P(lambda n: n > 0),
+                           budget_overspend_ratio=P(lambda x: 0.95 < x <= 1.05)))
+    def budget_at_limit(self):
+        self.note(CAUTION,
+                  "You are spending right at your budget limits, with no room left.", 3)
+
+    @Rule(FinancialProfile(budgets_set=P(lambda n: n > 0),
+                           budget_overspend_ratio=P(lambda x: x <= 0.95)))
+    def budget_within(self):
+        self.note(GOOD,
+                  "You are staying inside the budgets you set. That is the habit that "
+                  "makes everything else easier.")
+
+    @Rule(FinancialProfile(budgets_set=0))
+    def budget_none_set(self):
+        self.note(CAUTION,
+                  "No category budgets set. Setting even two or three makes "
+                  "overspending visible while there is still time to act.", 3)
+
+    # =========================================================
+    # IS THE GOAL EVEN POSSIBLE?
+    #
+    # An unachievable target guarantees being behind, so the pace rules below
+    # are suppressed when this fires. Charging for both would penalise one fact
+    # twice - and the honest advice is to move the target, not to try harder.
+    # =========================================================
+
+    @Rule(FinancialProfile(goal_set=True, has_income=True,
+                           goal_required_share=P(lambda x: x > 0.75)))
+    def goal_unrealistic(self):
+        self.note(WARNING,
+                  "This goal would need over three quarters of your income every "
+                  "month. Move the deadline or lower the target - the plan, not your "
+                  "effort, is what is off.", 10)
+
+    @Rule(FinancialProfile(goal_set=True, has_income=True,
+                           goal_required_share=P(lambda x: 0.5 < x <= 0.75)))
+    def goal_very_demanding(self):
+        self.note(CAUTION,
+                  "Hitting this goal needs more than half your income each month. "
+                  "Achievable, but it will squeeze everything else.", 5)
+
+    @Rule(FinancialProfile(goal_set=True, has_income=True,
+                           goal_required_share=P(lambda x: 0.25 < x <= 0.5)))
+    def goal_demanding(self):
+        self.note(NEUTRAL,
+                  "This goal needs a quarter to a half of your monthly income. "
+                  "Demanding but workable.")
+
+    @Rule(FinancialProfile(goal_set=True, has_income=True,
+                           goal_required_share=P(lambda x: 0 < x <= 0.25)))
+    def goal_comfortable(self):
+        self.note(GOOD,
+                  "Your savings goal sits comfortably within what you earn.")
+
+    # =========================================================
     # GOALS — pace against the deadline, not the absolute total
     #
     # goal_pace_ratio is contributed / expected-by-now. 1.0 is exactly on pace.
@@ -285,29 +366,29 @@ class FinancialAdvisor(KnowledgeEngine):
     # saving 70% of income was labelled "Overspender" for setting one.
     # =========================================================
 
-    @Rule(FinancialProfile(goal_set=True, goal_pace_ratio=P(lambda x: x < 0.25)))
+    @Rule(FinancialProfile(goal_set=True, goal_is_realistic=True, goal_pace_ratio=P(lambda x: x < 0.25)))
     def goal_far_behind(self):
         self.note(WARNING,
                   "You are far behind the pace your savings goal needs. Either "
                   "contribute more or move the deadline.", 12)
 
-    @Rule(FinancialProfile(goal_set=True, goal_pace_ratio=P(lambda x: 0.25 <= x < 0.6)))
+    @Rule(FinancialProfile(goal_set=True, goal_is_realistic=True, goal_pace_ratio=P(lambda x: 0.25 <= x < 0.6)))
     def goal_behind(self):
         self.note(WARNING,
                   "Your goal is behind schedule. Catching up now is easier than later.", 7)
 
-    @Rule(FinancialProfile(goal_set=True, goal_pace_ratio=P(lambda x: 0.6 <= x < 0.9)))
+    @Rule(FinancialProfile(goal_set=True, goal_is_realistic=True, goal_pace_ratio=P(lambda x: 0.6 <= x < 0.9)))
     def goal_slightly_behind(self):
         self.note(CAUTION,
                   "You are a little behind on your savings goal. A small increase "
                   "would put you back on track.", 3)
 
-    @Rule(FinancialProfile(goal_set=True, goal_pace_ratio=P(lambda x: 0.9 <= x < 1.5)))
+    @Rule(FinancialProfile(goal_set=True, goal_is_realistic=True, goal_pace_ratio=P(lambda x: 0.9 <= x < 1.5)))
     def goal_on_track(self):
         self.note(GOOD,
                   "You are on track to hit your savings goal by its deadline.", 1)
 
-    @Rule(FinancialProfile(goal_set=True, goal_pace_ratio=P(lambda x: x >= 1.5)))
+    @Rule(FinancialProfile(goal_set=True, goal_is_realistic=True, goal_pace_ratio=P(lambda x: x >= 1.5)))
     def goal_ahead(self):
         self.note(GOOD,
                   "You are well ahead of your savings goal. Consider raising the "

@@ -32,10 +32,17 @@ def run_analysis(payload: dict) -> dict:
         overspending_streak     = _safe_int(payload.get("overspending_streak")),
         luxury_spending_ratio   = _safe_float(payload.get("luxury_spending_ratio")),
         luxury_expense_growth   = payload.get("luxury_expense_growth", "stable"),
+        budgets_set             = _safe_int(payload.get("budgets_set")),
+        budget_overspend_ratio  = _safe_float(payload.get("budget_overspend_ratio")),
+        budgets_breached        = _safe_int(payload.get("budgets_breached")),
         goal_set                = bool(payload.get("goal_set", False)),
         goal_progress           = _safe_float(payload.get("goal_progress")),
         goal_pace_ratio         = _safe_float(payload.get("goal_pace_ratio")),
         goal_achievement_streak = _safe_int(payload.get("goal_achievement_streak")),
+        goal_required_share     = _safe_float(payload.get("goal_required_share")),
+        # Default True: an absent or unmeasurable goal is not "unrealistic",
+        # and treating it as such would suppress the pace rules for everyone.
+        goal_is_realistic       = bool(payload.get("goal_is_realistic", True)),
         spending_trend          = payload.get("spending_trend", "stable"),
     ))
 
