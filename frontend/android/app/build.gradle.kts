@@ -1,3 +1,10 @@
+// Imports must come before the plugins block in a .kts build script.
+// `java.util.Properties()` cannot be written inline here: inside a Gradle
+// Kotlin DSL script, `java` resolves to the Java plugin extension rather than
+// the package, so the reference fails to compile.
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -18,10 +25,10 @@ plugins {
 //   storePassword=...
 //   keyAlias=upload
 //   keyPassword=...
-val keystoreProperties = java.util.Properties()
+val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
 
 android {
@@ -53,10 +60,14 @@ android {
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             create("release") {
-                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-                storePassword = keystoreProperties["storePassword"] as String?
-                keyAlias = keystoreProperties["keyAlias"] as String?
-                keyPassword = keystoreProperties["keyPassword"] as String?
+                // getProperty returns String?, so no casts are needed - the
+                // map-style accessor returns Any? and forced the awkward casts
+                // that failed to compile.
+                val storePath = keystoreProperties.getProperty("storeFile")
+                if (storePath != null) storeFile = file(storePath)
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
             }
         }
     }
