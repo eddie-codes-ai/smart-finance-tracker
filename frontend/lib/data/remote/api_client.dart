@@ -35,6 +35,21 @@ class ApiClient {
   /// dead connection doesn't hang the UI forever.
   static const Duration _timeout = Duration(seconds: 30);
 
+  /// Called when the session is genuinely over — the refresh token has expired
+  /// or been revoked — so the app can clear its state and return to login.
+  ///
+  /// A callback rather than a direct navigation call, so this layer stays free
+  /// of any dependency on routing. app.dart wires it up once.
+  static Future<void> Function()? onSessionExpired;
+
+  /// The refresh currently in flight, if any.
+  ///
+  /// The dashboard fires analyze, getIncome and getExpenses together, so three
+  /// requests can hit a 401 within milliseconds of each other. Without this
+  /// they would each start a refresh, and the last to finish would overwrite
+  /// the token the others had already stored.
+  static Future<bool>? _refreshInFlight;
+
   static Future<Map<String, String>> _headers({bool authenticated = true}) async {
     final headers = {'Content-Type': 'application/json'};
     if (authenticated) {
@@ -50,7 +65,77 @@ class ApiClient {
   ///
   /// Throws [ApiException] on timeout, transport failure, a non-2xx status, or
   /// a body that isn't JSON. Returns the decoded body on success.
+  ///
+  /// The access token expires after an hour. When the server says so, this
+  /// exchanges the refresh token for a new one and replays the request **once**
+  /// — so the expiry is invisible — and gives up if that fails, rather than
+  /// looping against a server that has already refused.
   static Future<Map<String, dynamic>> _send(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? query,
+    bool authenticated = true,
+  }) async {
+    try {
+      return await _sendOnce(method, path,
+          body: body, query: query, authenticated: authenticated);
+    } on ApiException catch (e) {
+      if (!e.sessionExpired || !authenticated) rethrow;
+
+      final refreshed = await _refreshAccessToken();
+      if (!refreshed) {
+        // The refresh token is gone too: the session is genuinely over.
+        await onSessionExpired?.call();
+        throw ApiException(
+          'Your session has expired. Please sign in again.',
+          statusCode: 401,
+          sessionExpired: true,
+        );
+      }
+      // One replay only. If this 401s again, it is not an expiry problem.
+      return await _sendOnce(method, path,
+          body: body, query: query, authenticated: authenticated);
+    }
+  }
+
+  /// Exchange the refresh token for a new access token.
+  ///
+  /// Concurrent callers share one in-flight refresh rather than each starting
+  /// their own and racing to overwrite the result.
+  static Future<bool> _refreshAccessToken() {
+    return _refreshInFlight ??= _performRefresh()
+        .whenComplete(() => _refreshInFlight = null);
+  }
+
+  static Future<bool> _performRefresh() async {
+    final refreshToken = await SecureStorage.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      final response = await http
+          .post(Uri.parse('${AppConstants.baseUrl}/auth/refresh'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $refreshToken',
+              })
+          .timeout(_timeout);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) return false;
+
+      final token = _decode(response)['token'] as String?;
+      if (token == null || token.isEmpty) return false;
+
+      await SecureStorage.saveToken(token);
+      return true;
+    } catch (_) {
+      // A refresh that cannot reach the server is not proof the session ended,
+      // but there is nothing further to try on this request either.
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>> _sendOnce(
     String method,
     String path, {
     Map<String, dynamic>? body,
@@ -213,6 +298,19 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> deleteAccount({required String password}) {
     return _send('DELETE', '/auth/account', body: {'password': password});
+  }
+
+  /// The signed-in user, used to restore a session on app start.
+  ///
+  /// The splash screen used to decide it was signed in purely because a token
+  /// string existed in storage, without checking whether it was still valid.
+  static Future<Map<String, dynamic>> me() {
+    return _send('GET', '/auth/me');
+  }
+
+  /// End every session for this account, server-side.
+  static Future<Map<String, dynamic>> logout() {
+    return _send('POST', '/auth/logout');
   }
 
   static Future<Map<String, dynamic>> cancelDeletion() {

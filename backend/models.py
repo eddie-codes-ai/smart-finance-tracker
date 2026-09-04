@@ -60,6 +60,15 @@ class User(db.Model):
     failed_login_attempts = db.Column(db.Integer, nullable=False,
                                       default=0, server_default="0")
     locked_until          = db.Column(db.DateTime,                  nullable=True)
+
+    # Stamped into every token this user is issued and checked on each request.
+    # Bumping it invalidates every token they hold at once, which is how logout,
+    # a password change and a password reset can actually end a session - with
+    # no blocklist table to store or prune. Without it a stolen token survived
+    # the victim changing their password, which made the reset flow useless
+    # against the attack it exists to stop.
+    token_version         = db.Column(db.Integer, nullable=False,
+                                      default=0, server_default="0")
     deletion_requested_at = db.Column(db.DateTime,                  nullable=True)
     created_at            = db.Column(db.DateTime, default=utc_now, nullable=False)
 
@@ -130,6 +139,19 @@ class User(db.Model):
     def clear_login_failures(self):
         self.failed_login_attempts = 0
         self.locked_until          = None
+
+    # ── Sessions ─────────────────────────────────────────────────────────────
+
+    def revoke_all_sessions(self):
+        """
+        Invalidate every token this user currently holds.
+
+        Called on logout, password change and password reset. The last is the
+        important one: someone who changes their password because they suspect
+        a compromise expects that to end the intruder's access, and before this
+        it did not.
+        """
+        self.token_version = (self.token_version or 0) + 1
 
     @property
     def is_pending_deletion(self) -> bool:

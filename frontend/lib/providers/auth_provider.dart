@@ -36,12 +36,52 @@ class AuthProvider extends ChangeNotifier {
   void _setLoading(bool val) { _isLoading = val; notifyListeners(); }
   void clearError() { _error = null; notifyListeners(); }
 
+  /// Persist the tokens from a sign-in, registration or password change.
+  ///
+  /// The refresh token is what keeps the session alive across the access
+  /// token's hourly expiry, so losing it silently would sign the user out an
+  /// hour later for no visible reason.
+  Future<void> _storeSession(Map<String, dynamic> response) async {
+    final token = response['token'] as String?;
+    if (token != null && token.isNotEmpty) {
+      await SecureStorage.saveToken(token);
+    }
+    final refresh = response['refresh_token'] as String?;
+    if (refresh != null && refresh.isNotEmpty) {
+      await SecureStorage.saveRefreshToken(refresh);
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // STANDARD AUTH
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// Restore a session on app start.
+  ///
+  /// This used to return whether a token *string* existed in storage, without
+  /// asking the server whether it was still valid and without reloading the
+  /// user - which is why the profile screen showed "Unknown" with no email
+  /// until the next manual sign-in. Now that tokens expire, believing storage
+  /// would route the user into a dashboard where every request fails.
   Future<bool> restoreSession() async {
-    return await SecureStorage.isLoggedIn();
+    if (!await SecureStorage.isLoggedIn()) return false;
+    try {
+      final response = await ApiClient.me();
+      if (response['status'] != 'success') return false;
+      _user            = UserModel.fromJson(response['user']);
+      _pendingDeletion = response['pending_deletion'] ?? false;
+      _deletionDueAt   = response['deletion_due_at'] as String?;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      // An expired or revoked session is a clean "no". A network failure is
+      // not proof the session ended, but there is no way to use the app
+      // offline either, so both send the user to the sign-in screen.
+      if (e.isAuthFailure) await SecureStorage.clearAll();
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> register(
@@ -62,7 +102,7 @@ class AuthProvider extends ChangeNotifier {
       );
       if (response['status'] == 'success') {
         _user = UserModel.fromJson(response['user']);
-        await SecureStorage.saveToken(response['token']);
+        await _storeSession(response);
         await SecureStorage.saveUsername(_user!.username);
         _setLoading(false);
         return true;
@@ -88,7 +128,7 @@ class AuthProvider extends ChangeNotifier {
       final response = await ApiClient.login(username, password);
       if (response['status'] == 'success') {
         _user = UserModel.fromJson(response['user']);
-        await SecureStorage.saveToken(response['token']);
+        await _storeSession(response);
         await SecureStorage.saveUsername(_user!.username);
 
         // Store pending deletion state so the profile screen can show
@@ -114,8 +154,20 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Tell the server first, so tokens already copied elsewhere stop working.
+    // Clearing only this device left a stolen token valid indefinitely.
+    // Best-effort: a failure here must not trap the user in a signed-in state.
+    try { await ApiClient.logout(); } catch (_) {}
     await SecureStorage.clearAll();
     try { await _googleSignIn.signOut(); } catch (_) {}
+    clearSession();
+  }
+
+  /// Drop local session state without calling the server.
+  ///
+  /// Used when the session has already ended server-side - an expired or
+  /// revoked refresh token - where calling logout would only fail.
+  void clearSession() {
     _user            = null;
     _pendingDeletion = false;
     _deletionDueAt   = null;
@@ -146,7 +198,7 @@ class AuthProvider extends ChangeNotifier {
       final response = await ApiClient.googleSignIn(idToken);
       if (response['status'] == 'success') {
         _user = UserModel.fromJson(response['user']);
-        await SecureStorage.saveToken(response['token']);
+        await _storeSession(response);
         await SecureStorage.saveUsername(_user!.username);
         _setLoading(false);
         return true;
@@ -232,6 +284,10 @@ class AuthProvider extends ChangeNotifier {
       );
       if (response['status'] == 'success') {
         _user = UserModel.fromJson(response['user']);
+        // A password change revokes every session, so the server issues this
+        // device a replacement pair. Without storing it the user would be
+        // signed out of the app they just changed their password in.
+        await _storeSession(response);
         await SecureStorage.saveUsername(_user!.username);
         _setLoading(false);
         return true;

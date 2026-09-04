@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
@@ -31,7 +32,13 @@ def create_app():
     app.config["JWT_SECRET_KEY"]                 = os.environ.get(
         "JWT_SECRET_KEY", "change-this-secret-in-production"
     )
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"]       = False
+    # Tokens used to never expire, so anything that leaked - a shared laptop, a
+    # backup, an intercepted request - was permanent access to someone's
+    # finances. The access token is short-lived and refreshed silently by the
+    # app; the refresh token is what decides how often a password is actually
+    # typed again.
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"]  = timedelta(hours=1)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 
     # ── Extensions ────────────────────────────────────────────────────────────
     db.init_app(app)
@@ -84,6 +91,26 @@ def _configure_jwt(jwt: JWTManager):
     @jwt.revoked_token_loader
     def _revoked(_header, _payload):
         return _reject("Your session has been signed out. Please sign in again.")
+
+    @jwt.token_verification_loader
+    def _still_current(_header, payload):
+        """
+        Reject tokens issued before the user's sessions were last revoked.
+
+        Every token carries the token_version it was minted under; bumping the
+        column on the user invalidates all of them at once. This is what makes
+        logout, a password change and a password reset actually end a session,
+        without a blocklist table to store or prune.
+        """
+        from models import User
+        user = User.query.get(int(payload["sub"]))
+        if user is None:
+            return False
+        return payload.get("tv", 0) == (user.token_version or 0)
+
+    @jwt.token_verification_failed_loader
+    def _superseded(_header, _payload):
+        return _reject("Your session has ended. Please sign in again.")
 
     return jwt
 

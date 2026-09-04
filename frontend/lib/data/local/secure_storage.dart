@@ -30,6 +30,20 @@ class SecureStorage {
     await _storage.delete(key: AppConstants.tokenKey);
   }
 
+  // ─── Refresh token ──────────────────────────────────────────────────────────
+  // The access token now expires after an hour and is exchanged silently using
+  // this one, so the user is not interrupted hourly. This is the credential
+  // that decides how long a session lasts, so it lives in the same encrypted
+  // store as the access token.
+
+  static Future<void> saveRefreshToken(String token) async {
+    await _storage.write(key: AppConstants.refreshTokenKey, value: token);
+  }
+
+  static Future<String?> getRefreshToken() async {
+    return await _storage.read(key: AppConstants.refreshTokenKey);
+  }
+
   // ─── Username ────────────────────────────────────────────────────────────────
 
   /// Save username alongside token so screens can display it without an API call.

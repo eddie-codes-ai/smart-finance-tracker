@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from flask import Blueprint, request, jsonify, g, current_app
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import (create_access_token, create_refresh_token,
+                                jwt_required, get_jwt_identity)
 
 from app_time import (DEFAULT_TIMEZONE_NAME, is_valid_timezone, known_timezones,
                       month_range_utc, now_in, resolve_timezone, utc_now)
@@ -78,6 +79,23 @@ def current_user_tz():
         user = User.query.get(int(get_jwt_identity()))
         g._user_tz = resolve_timezone(user.timezone if user else None)
     return g._user_tz
+
+
+def issue_session(user) -> dict:
+    """
+    Mint an access/refresh pair for a user.
+
+    Both carry the user's current token_version, so bumping that column ends
+    every session they hold. The access token is short-lived and refreshed
+    silently by the app; the refresh token is what decides how often a password
+    is actually typed again.
+    """
+    claims = {"tv": user.token_version or 0}
+    identity = str(user.id)
+    return {
+        "token":         create_access_token(identity=identity, additional_claims=claims),
+        "refresh_token": create_refresh_token(identity=identity, additional_claims=claims),
+    }
 
 
 def parse_timestamp(value) -> Optional[datetime]:
@@ -258,8 +276,8 @@ def register():
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
-    token = create_access_token(identity=str(user.id))
-    return success({"message": "Account created.", "token": token, "user": user.to_dict()}, 201)
+    return success({"message": "Account created.", "user": user.to_dict(),
+                    **issue_session(user)}, 201)
 
 
 @api.route("/auth/login", methods=["POST"])
@@ -286,9 +304,8 @@ def login():
 
     user.clear_login_failures()
     db.session.commit()
-    token = create_access_token(identity=str(user.id))
     return success({
-        "token":            token,
+        **issue_session(user),
         "user":             user.to_dict(),
         "pending_deletion": user.is_pending_deletion,
         "deletion_due_at":  user.deletion_due_at.isoformat() if user.deletion_due_at else None,
@@ -327,8 +344,63 @@ def google_signin():
         user.password_hash = secrets.token_hex(32)
         db.session.add(user)
     db.session.commit()
-    token = create_access_token(identity=str(user.id))
-    return success({"token": token, "user": user.to_dict()})
+    return success({"user": user.to_dict(), **issue_session(user)})
+
+
+@api.route("/auth/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh_session():
+    """
+    Exchange a refresh token for a new access token.
+
+    Only accepts refresh tokens - an access token presented here is rejected by
+    the decorator, and vice versa at every other endpoint, so the two cannot be
+    used interchangeably.
+    """
+    user = User.query.get(int(get_jwt_identity()))
+    if not user:
+        return error("Your session is no longer valid. Please sign in again.", 401)
+    claims = {"tv": user.token_version or 0}
+    return success({
+        "token": create_access_token(identity=str(user.id), additional_claims=claims),
+    })
+
+
+@api.route("/auth/logout", methods=["POST"])
+@jwt_required()
+def logout():
+    """
+    End every session this user holds.
+
+    Logging out used to clear the phone's storage and nothing else, so a token
+    already copied elsewhere kept working indefinitely.
+    """
+    user = User.query.get(int(get_jwt_identity()))
+    if user:
+        user.revoke_all_sessions()
+        db.session.commit()
+    return success({"message": "Signed out."})
+
+
+@api.route("/auth/me", methods=["GET"])
+@jwt_required()
+def current_user():
+    """
+    The signed-in user, for restoring a session on app start.
+
+    The app previously decided it was logged in purely because a token string
+    existed in storage - never checking whether it was still valid, and never
+    reloading the user, which is why the profile screen showed "Unknown" until
+    the next manual sign-in.
+    """
+    user = User.query.get(int(get_jwt_identity()))
+    if not user:
+        return error("Your session is no longer valid. Please sign in again.", 401)
+    return success({
+        "user":             user.to_dict(),
+        "pending_deletion": user.is_pending_deletion,
+        "deletion_due_at":  user.deletion_due_at.isoformat() if user.deletion_due_at else None,
+    })
 
 
 @api.route("/auth/forgot-password", methods=["POST"])
@@ -386,6 +458,10 @@ def reset_password_endpoint():
     user.set_password(new_password)
     user.clear_reset_code()
     user.clear_login_failures()   # a successful reset should not leave them locked out
+    # End every existing session. Someone resetting their password because they
+    # suspect a compromise expects that to lock the intruder out; without this
+    # a stolen token kept working regardless.
+    user.revoke_all_sessions()
     db.session.commit()
     return success({"message": "Password reset successfully. You can now log in with your new password."})
 
@@ -401,6 +477,7 @@ def update_profile():
     new_password     = data.get("new_password", "") or None
     current_password = data.get("current_password", "") or None
     new_timezone     = (data.get("timezone") or "").strip() or None
+    password_changed = False
     if not any([new_username, new_email, new_password, new_timezone]):
         return error("No changes provided.")
     if new_timezone:
@@ -428,8 +505,19 @@ def update_profile():
         if problem:
             return error(problem)
         user.set_password(new_password)
+        # End sessions on every other device. The caller gets a fresh pair
+        # below, so changing your own password does not sign you out of the
+        # device you just changed it on.
+        user.revoke_all_sessions()
+        password_changed = True
     db.session.commit()
-    return success({"message": "Profile updated successfully.", "user": user.to_dict()})
+
+    response = {"message": "Profile updated successfully.", "user": user.to_dict()}
+    if password_changed:
+        response.update(issue_session(user))
+        response["message"] = ("Password changed. You have been signed out on any "
+                               "other devices.")
+    return success(response)
 
 
 @api.route("/auth/account", methods=["DELETE"])

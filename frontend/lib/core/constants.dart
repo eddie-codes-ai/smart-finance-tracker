@@ -79,6 +79,7 @@ class AppConstants {
   // ─── Secure Storage Keys ────────────────────────────────────────────────────
   // Keys used to store/retrieve values from flutter_secure_storage.
   static const String tokenKey = 'jwt_token';
+  static const String refreshTokenKey = 'jwt_refresh_token';
   static const String usernameKey = 'username';
 
   // ─── Misc ───────────────────────────────────────────────────────────────────
