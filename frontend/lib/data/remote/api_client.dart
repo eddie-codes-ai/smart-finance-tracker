@@ -262,15 +262,22 @@ class ApiClient {
   // INCOME
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// [mpesaCode] and [dateAdded] are for imported M-Pesa messages: the code
+  /// lets the server refuse a second import of the same message, and the date
+  /// keeps the transaction on the day it actually happened.
   static Future<Map<String, dynamic>> addIncome({
     required double amount,
     required String incomeType,
     String description = '',
+    String? mpesaCode,
+    DateTime? dateAdded,
   }) {
     return _send('POST', '/income', body: {
       'amount': amount,
       'income_type': incomeType,
       'description': description,
+      if (mpesaCode != null && mpesaCode.isNotEmpty) 'mpesa_code': mpesaCode,
+      if (dateAdded != null) 'date_added': _isoUtc(dateAdded),
     });
   }
 
@@ -303,12 +310,17 @@ class ApiClient {
   // EXPENSES
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// [mpesaCode] and [dateAdded] are for imported M-Pesa messages: the code
+  /// lets the server refuse a second import of the same message, and the date
+  /// keeps the transaction on the day it actually happened.
   static Future<Map<String, dynamic>> addExpense({
     required double amount,
     required String category,
     String description = '',
     String expenseType = 'daily',
     String? recurrenceInterval,
+    String? mpesaCode,
+    DateTime? dateAdded,
   }) {
     return _send('POST', '/expenses', body: {
       'amount': amount,
@@ -316,7 +328,15 @@ class ApiClient {
       'description': description,
       'expense_type': expenseType,
       'recurrence_interval': recurrenceInterval,
+      if (mpesaCode != null && mpesaCode.isNotEmpty) 'mpesa_code': mpesaCode,
+      if (dateAdded != null) 'date_added': _isoUtc(dateAdded),
     });
+  }
+
+  /// Which of these M-Pesa codes this user has already imported, so the import
+  /// screen can mark them rather than letting the user tap one and be refused.
+  static Future<Map<String, dynamic>> checkImportedMpesaCodes(List<String> codes) {
+    return _send('POST', '/mpesa/imported', body: {'codes': codes});
   }
 
   static Future<Map<String, dynamic>> getExpenses({int? month, int? year}) {

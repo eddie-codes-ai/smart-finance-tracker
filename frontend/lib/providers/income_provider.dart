@@ -50,6 +50,8 @@ class IncomeProvider extends ChangeNotifier {
     required double amount,
     required String incomeType,
     required String description,
+    String? mpesaCode,            // set when importing an M-Pesa SMS
+    DateTime? dateAdded,          // the SMS's own date, not the import time
   }) async {
     _setLoading(true);
     try {
@@ -57,10 +59,14 @@ class IncomeProvider extends ChangeNotifier {
         amount: amount,
         incomeType: incomeType,
         description: description,
+        mpesaCode: mpesaCode,
+        dateAdded: dateAdded,
       );
       // Insert the new record at the top of the list without a full refetch.
+      // An imported message can be dated outside the month on screen, in which
+      // case it belongs to a period this provider is not showing.
       final newRecord = IncomeModel.fromJson(data['income']);
-      _records.insert(0, newRecord);
+      if (_isInLoadedPeriod(newRecord)) _records.insert(0, newRecord);
       _errorMessage = null;
       return true;
     } on ApiException catch (e) {

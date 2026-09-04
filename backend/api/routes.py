@@ -114,6 +114,41 @@ def is_future_timestamp(moment: datetime) -> bool:
     return moment > utc_now() + FUTURE_TIMESTAMP_SLACK
 
 
+def mpesa_code(value) -> Optional[str]:
+    """
+    Normalise a submitted M-Pesa confirmation code, or None if there isn't one.
+
+    The parser yields the literal string "N/A" when it cannot find a code in the
+    message. Storing that would make the second unparseable import collide with
+    the first under the unique constraint, so it is treated as absent - which is
+    what it means.
+    """
+    if not isinstance(value, str):
+        return None
+    code = value.strip().upper()
+    if not code or code == "N/A":
+        return None
+    return code[:20]
+
+
+def created_at_from(data: dict):
+    """
+    Resolve an optional client-supplied date_added for a new record.
+
+    Returns (value, None) or (None, error_response). Imported transactions carry
+    the date of the original SMS; without this every imported message landed on
+    the day it was imported.
+    """
+    if "date_added" not in data:
+        return None, None
+    moment = parse_timestamp(data.get("date_added"))
+    if moment is None:
+        return None, error("Invalid date_added. Use an ISO 8601 timestamp.")
+    if is_future_timestamp(moment):
+        return None, error("date_added cannot be in the future.")
+    return moment, None
+
+
 MIN_PASSWORD_LENGTH = 6
 
 # A six-digit code is only a million possibilities, so what actually protects it
@@ -430,6 +465,36 @@ def cancel_account_deletion():
     return success({"message": "Account deletion cancelled. Your account is safe.", "user": user.to_dict()})
 
 
+@api.route("/mpesa/imported", methods=["POST"])
+@jwt_required()
+def mpesa_imported():
+    """
+    POST /api/mpesa/imported   { "codes": ["SB27LJ9O3R", ...] }
+
+    Returns the subset this user has already imported, so the import screen can
+    mark those messages instead of letting the user tap one and be refused.
+    One round trip for the whole visible list.
+    """
+    user_id = int(get_jwt_identity())
+    raw     = body().get("codes")
+    if not isinstance(raw, list):
+        return error("codes must be a list of M-Pesa transaction codes.")
+
+    codes = {c for c in (mpesa_code(v) for v in raw) if c}
+    if not codes:
+        return success({"imported": []})
+
+    found = set()
+    for model in (Expense, Income):
+        rows = model.query.filter(
+            model.user_id == user_id,
+            model.mpesa_code.in_(codes),
+        ).all()
+        found.update(r.mpesa_code for r in rows)
+
+    return success({"imported": sorted(found)})
+
+
 @api.route("/timezones", methods=["GET"])
 @jwt_required()
 def get_timezones():
@@ -577,7 +642,25 @@ def add_income():
     description = data.get("description", "")
     if amount is None:
         return error("A valid amount is required.")
-    income = Income(user_id=user_id, amount=amount, income_type=income_type, description=description)
+
+    code = mpesa_code(data.get("mpesa_code"))
+    if code:
+        existing = Income.query.filter_by(user_id=user_id, mpesa_code=code).first()
+        if existing:
+            return jsonify({
+                "status":  "error",
+                "message": "This M-Pesa message has already been imported.",
+                "income":  existing.to_dict(),
+            }), 409
+
+    created_at, failure = created_at_from(data)
+    if failure:
+        return failure
+
+    income = Income(user_id=user_id, amount=amount, income_type=income_type,
+                    description=description, mpesa_code=code)
+    if created_at:
+        income.date_added = created_at
     db.session.add(income)
     db.session.commit()
     return success({"message": "Income added.", "income": income.to_dict()}, 201)
@@ -676,9 +759,29 @@ def add_expense():
         return error(f"expense_type must be one of: {', '.join(EXPENSE_TYPES)}.")
     if recurrence_interval not in (None, "") and recurrence_interval not in RECURRENCE_CHOICES:
         return error(f"recurrence_interval must be one of: {', '.join(RECURRENCE_CHOICES)}.")
+
+    code = mpesa_code(data.get("mpesa_code"))
+    if code:
+        existing = Expense.query.filter_by(user_id=user_id, mpesa_code=code).first()
+        if existing:
+            # 409 with the row it matched, so the app can say which transaction
+            # this already is rather than showing a bare failure.
+            return jsonify({
+                "status":  "error",
+                "message": "This M-Pesa message has already been imported.",
+                "expense": existing.to_dict(),
+            }), 409
+
+    created_at, failure = created_at_from(data)
+    if failure:
+        return failure
+
     expense = Expense(user_id=user_id, amount=amount, category=category,
                       description=description, expense_type=expense_type,
-                      recurrence_interval=recurrence_interval or None)
+                      recurrence_interval=recurrence_interval or None,
+                      mpesa_code=code)
+    if created_at:
+        expense.date_added = created_at
     db.session.add(expense)
     db.session.commit()
     return success({"message": "Expense added.", "expense": expense.to_dict()}, 201)

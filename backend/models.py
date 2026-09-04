@@ -169,6 +169,17 @@ class Income(db.Model):
     description = db.Column(db.String(255), nullable=True)
     date_added  = db.Column(db.DateTime, default=utc_now, nullable=False)
 
+    # The M-Pesa confirmation code (e.g. "SB27LJ9O3R"), when this row came from
+    # an imported SMS. Unique per user so importing the same message twice is
+    # refused by the database rather than silently double-counted. NULL for
+    # anything entered by hand, and NULLs never collide with each other in
+    # either SQLite or Postgres, so manual entries are unconstrained.
+    mpesa_code  = db.Column(db.String(20), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "mpesa_code", name="uq_income_user_mpesa_code"),
+    )
+
     def to_dict(self) -> dict:
         return {
             "id":          self.id,
@@ -177,6 +188,7 @@ class Income(db.Model):
             "income_type": self.income_type,
             "description": self.description,
             "date_added":  iso_utc(self.date_added),
+            "mpesa_code":  self.mpesa_code,
         }
 
     def __repr__(self):
@@ -197,6 +209,17 @@ class Expense(db.Model):
     recurrence_interval = db.Column(db.String(20), nullable=True)
     date_added          = db.Column(db.DateTime, default=utc_now, nullable=False)
 
+    # The M-Pesa confirmation code (e.g. "SB27LJ9O3R"), when this row came from
+    # an imported SMS. Unique per user so importing the same message twice is
+    # refused by the database rather than silently double-counted. NULL for
+    # anything entered by hand, and NULLs never collide with each other in
+    # either SQLite or Postgres, so manual entries are unconstrained.
+    mpesa_code          = db.Column(db.String(20), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "mpesa_code", name="uq_expense_user_mpesa_code"),
+    )
+
     def to_dict(self) -> dict:
         return {
             "id":                   self.id,
@@ -207,6 +230,7 @@ class Expense(db.Model):
             "expense_type":         self.expense_type,
             "recurrence_interval":  self.recurrence_interval,
             "date_added":           iso_utc(self.date_added),
+            "mpesa_code":           self.mpesa_code,
         }
 
     def __repr__(self):

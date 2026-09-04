@@ -58,6 +58,8 @@ class ExpenseProvider extends ChangeNotifier {
     required String expenseType,
     String? recurrenceInterval,
     double? budgetLimit,          // ← NEW: pass from UI if a budget is set
+    String? mpesaCode,            // set when importing an M-Pesa SMS
+    DateTime? dateAdded,          // the SMS's own date, not the import time
   }) async {
     _setLoading(true);
     try {
@@ -72,10 +74,14 @@ class ExpenseProvider extends ChangeNotifier {
         description:         description,
         expenseType:         expenseType,
         recurrenceInterval:  recurrenceInterval,
+        mpesaCode:           mpesaCode,
+        dateAdded:           dateAdded,
       );
 
       final newRecord = ExpenseModel.fromJson(data['expense']);
-      _records.insert(0, newRecord);
+      // An imported message can be dated outside the month on screen; adding it
+      // to this list would show it under the wrong period.
+      if (_isInLoadedPeriod(newRecord)) _records.insert(0, newRecord);
       _errorMessage = null;
 
       // Fire a local notification if a budget limit was supplied

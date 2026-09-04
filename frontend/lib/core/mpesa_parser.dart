@@ -28,6 +28,11 @@ class MpesaParseResult {
   final String incomeType;        // pre-selects income type (income only)
   final String rawMessage;        // original SMS for reference
 
+  /// When the transaction happened, read out of the message body. Null when the
+  /// message carries no readable date; the caller then falls back to the SMS
+  /// envelope's own timestamp, and only then to "now".
+  final DateTime? transactionDate;
+
   const MpesaParseResult({
     required this.transactionCode,
     required this.type,
@@ -37,6 +42,7 @@ class MpesaParseResult {
     required this.suggestedCategory,
     required this.incomeType,
     required this.rawMessage,
+    this.transactionDate,
   });
 }
 
@@ -105,6 +111,7 @@ class MpesaParser {
                             ? 'helb'
                             : _guessIncomeType(name),
       rawMessage:         msg,
+      transactionDate:    extractDate(msg),
     );
   }
 
@@ -130,6 +137,7 @@ class MpesaParser {
       suggestedCategory:  'Other', // memory/keyword will override this
       incomeType:         'other',
       rawMessage:         msg,
+      transactionDate:    extractDate(msg),
     );
   }
 
@@ -146,6 +154,7 @@ class MpesaParser {
       suggestedCategory:  'Utilities',
       incomeType:         'other',
       rawMessage:         msg,
+      transactionDate:    extractDate(msg),
     );
   }
 
@@ -175,10 +184,58 @@ class MpesaParser {
       suggestedCategory:  seededCategory,
       incomeType:         'other',
       rawMessage:         msg,
+      transactionDate:    extractDate(msg),
     );
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /// Reads the transaction date out of the message body.
+  ///
+  /// M-Pesa writes it as "on 5/2/26 at 3:45 PM" — day/month/two-digit-year, the
+  /// Kenyan convention. That ordering is a judgement call rather than something
+  /// the message states, so anything implausible is rejected and the caller
+  /// falls back rather than recording a confidently wrong date.
+  static DateTime? extractDate(String msg) {
+    final match = RegExp(
+      r'on\s+(\d{1,2})/(\d{1,2})/(\d{2,4})'
+      r'(?:\s+at\s+(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm])?',
+    ).firstMatch(msg);
+    if (match == null) return null;
+
+    final day   = int.tryParse(match.group(1)!);
+    final month = int.tryParse(match.group(2)!);
+    var   year  = int.tryParse(match.group(3)!);
+    if (day == null || month == null || year == null) return null;
+    if (year < 100) year += 2000;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    var hour   = 0;
+    var minute = 0;
+    if (match.group(4) != null) {
+      hour   = int.tryParse(match.group(4)!) ?? 0;
+      minute = int.tryParse(match.group(5)!) ?? 0;
+      final isPm = match.group(6)!.toUpperCase() == 'P';
+      if (hour == 12) hour = 0;        // 12 AM is 00; 12 PM becomes 12 below
+      if (isPm) hour += 12;
+      if (hour > 23 || minute > 59) return null;
+    }
+
+    final parsed = DateTime(year, month, day, hour, minute);
+
+    // A day that rolled over (31 April silently becoming 1 May) means the input
+    // was not a real date.
+    if (parsed.day != day || parsed.month != month) return null;
+
+    // Guard against a misread: a transaction cannot be in the future, and one
+    // over five years old is far likelier to be a parsing error than a message
+    // still sitting in the inbox.
+    final now = DateTime.now();
+    if (parsed.isAfter(now.add(const Duration(days: 1)))) return null;
+    if (parsed.isBefore(now.subtract(const Duration(days: 365 * 5)))) return null;
+
+    return parsed;
+  }
 
   /// Extracts the leading transaction code e.g. "SB27LJ9O3R"
   static String _extractCode(String msg) {

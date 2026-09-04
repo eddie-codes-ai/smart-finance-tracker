@@ -12,6 +12,7 @@ import '../../core/category_suggester.dart';
 import '../../core/mpesa_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme.dart';
+import '../../data/remote/api_client.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/income_provider.dart';
 
@@ -33,6 +34,11 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
   bool _saving   = false;
   bool _autoSave = false;
   static const _kAutoSaveKey = 'mpesa_auto_save_enabled';
+
+  /// Transaction codes already in this account, so the list can mark them.
+  /// Without this the only way to discover a message was already imported was
+  /// to tap it and be refused.
+  Set<String> _importedCodes = {};
 
   @override
   void initState() {
@@ -91,12 +97,41 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
                (body.contains('CONFIRMED') && body.contains('KSH'));
       }).take(60).toList();
       setState(() { _smsList = mpesaMessages; _smsLoading = false; });
+      await _loadImportedCodes(mpesaMessages);
     } catch (e) {
       setState(() { _smsError = 'Could not read SMS messages: ${e.toString()}'; _smsLoading = false; });
     }
   }
 
-  Future<void> _handleMessage(String rawMessage) async {
+  /// One round trip for the whole visible list, rather than a request per row.
+  Future<void> _loadImportedCodes(List<SmsMessage> messages) async {
+    final codes = <String>{};
+    for (final m in messages) {
+      final parsed = MpesaParser.parse(m.body ?? '');
+      final code   = parsed?.transactionCode;
+      if (code != null && code.isNotEmpty && code != 'N/A') codes.add(code);
+    }
+    if (codes.isEmpty) return;
+    try {
+      final data = await ApiClient.checkImportedMpesaCodes(codes.toList());
+      final imported = (data['imported'] as List).cast<String>().toSet();
+      if (mounted) setState(() => _importedCodes = imported);
+    } catch (_) {
+      // Not being able to mark them is a cosmetic loss; the server still
+      // refuses a duplicate on save, so nothing can slip through.
+    }
+  }
+
+  /// The date to file an imported transaction under.
+  ///
+  /// The SMS envelope's timestamp is authoritative when importing from the
+  /// inbox. Pasted text has no envelope, so the date inside the message body is
+  /// the next best thing, and "now" is the last resort.
+  DateTime _resolveDate(MpesaParseResult result, DateTime? smsDate) {
+    return smsDate ?? result.transactionDate ?? DateTime.now();
+  }
+
+  Future<void> _handleMessage(String rawMessage, {DateTime? smsDate}) async {
     final result = MpesaParser.parse(rawMessage);
     if (result == null) {
       _showError('This does not look like an M-Pesa message. Make sure you copy the full SMS including the transaction code.');
@@ -109,64 +144,95 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
       else { finalCategory = CategorySuggester.suggest(result.description) ?? result.suggestedCategory; }
     } else { finalCategory = 'Other'; }
     if (!mounted) return;
-    _showResultSheet(result, finalCategory, fromMemory);
+    _showResultSheet(result, finalCategory, fromMemory, _resolveDate(result, smsDate));
   }
 
-  Future<void> _handleMessageAutoSave(String rawMessage) async {
+  Future<void> _handleMessageAutoSave(String rawMessage, {DateTime? smsDate}) async {
     final result = MpesaParser.parse(rawMessage);
     if (result == null) { _showError('Could not parse this M-Pesa message.'); return; }
     final remembered = await MpesaMemory.lookup(result.recipientOrSender);
     if (result.type == 'expense' && remembered != null) {
-      await _saveTransaction(result, remembered, result.description, result.incomeType);
+      await _saveTransaction(result, remembered, result.description,
+          result.incomeType, _resolveDate(result, smsDate));
     } else {
       String finalCategory; bool fromMemory = false;
       if (result.type == 'expense') {
         finalCategory = CategorySuggester.suggest(result.description) ?? result.suggestedCategory;
       } else { finalCategory = 'Other'; }
       if (!mounted) return;
-      _showResultSheet(result, finalCategory, fromMemory);
+      _showResultSheet(result, finalCategory, fromMemory, _resolveDate(result, smsDate));
     }
   }
 
-  void _showResultSheet(MpesaParseResult result, String initialCategory, bool fromMemory) {
+  void _showResultSheet(MpesaParseResult result, String initialCategory,
+      bool fromMemory, DateTime transactionDate) {
     showModalBottomSheet(
       context: context, isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => _ResultSheet(
           result: result, initialCategory: initialCategory,
-          fromMemory: fromMemory, onSave: _saveTransaction),
+          fromMemory: fromMemory, transactionDate: transactionDate,
+          onSave: _saveTransaction),
     );
   }
 
   Future<void> _saveTransaction(
     MpesaParseResult result, String finalCategory,
-    String finalDescription, String finalIncomeType, {bool fromSheet = false}) async {
+    String finalDescription, String finalIncomeType, DateTime transactionDate,
+    {bool fromSheet = false}) async {
     setState(() => _saving = true);
-    try {
-      if (result.type == 'expense') {
-        await context.read<ExpenseProvider>().addExpense(
-            amount: result.amount, category: finalCategory,
-            description: finalDescription, expenseType: 'daily');
-        await MpesaMemory.save(result.recipientOrSender, finalCategory);
-      } else {
-        await context.read<IncomeProvider>().addIncome(
-            amount: result.amount, incomeType: finalIncomeType, description: finalDescription);
-      }
-      if (!mounted) return;
-      if (fromSheet) Navigator.pop(context);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(result.type == 'expense'
-              ? 'Expense of KES ${result.amount.toStringAsFixed(2)} saved.'
-              : 'Income of KES ${result.amount.toStringAsFixed(2)} saved.'),
-          backgroundColor: AppTheme.primary));
-    } catch (e) {
-      if (!mounted) return;
-      _showError('Failed to save: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _saving = false);
+
+    // Captured before any await, so the snackbar and pops do not reach for a
+    // context that may no longer be mounted.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final expenses  = context.read<ExpenseProvider>();
+    final incomes   = context.read<IncomeProvider>();
+
+    // "N/A" means the parser found no code; sending it would make every
+    // unparseable message collide with the first one.
+    final code = result.transactionCode == 'N/A' ? null : result.transactionCode;
+
+    final bool saved;
+    final String? failure;
+    if (result.type == 'expense') {
+      saved = await expenses.addExpense(
+          amount: result.amount, category: finalCategory,
+          description: finalDescription, expenseType: 'daily',
+          mpesaCode: code, dateAdded: transactionDate);
+      failure = expenses.errorMessage;
+      if (saved) await MpesaMemory.save(result.recipientOrSender, finalCategory);
+    } else {
+      saved = await incomes.addIncome(
+          amount: result.amount, incomeType: finalIncomeType,
+          description: finalDescription,
+          mpesaCode: code, dateAdded: transactionDate);
+      failure = incomes.errorMessage;
     }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (!saved) {
+      // Nothing was written. Say so rather than reporting a save that did not
+      // happen - a duplicate import reads as information, not an error.
+      if (fromSheet) navigator.pop();
+      messenger.showSnackBar(SnackBar(
+          content: Text(failure ?? 'Could not save this transaction.'),
+          backgroundColor: AppTheme.error));
+      return;
+    }
+
+    if (code != null) setState(() => _importedCodes = {..._importedCodes, code});
+
+    if (fromSheet) navigator.pop();
+    navigator.pop();
+    messenger.showSnackBar(SnackBar(
+        content: Text(result.type == 'expense'
+            ? 'Expense of KES ${result.amount.toStringAsFixed(2)} saved.'
+            : 'Income of KES ${result.amount.toStringAsFixed(2)} saved.'),
+        backgroundColor: AppTheme.primary));
   }
 
   void _showError(String message) {
@@ -253,20 +319,46 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
                 final body = sms.body ?? '';
                 final amountMatch = RegExp(r'[Kk]sh([\d,]+\.?\d*)').firstMatch(body);
                 final preview = amountMatch != null ? 'KES ${amountMatch.group(1)}' : 'Tap to import';
+                final code = MpesaParser.parse(body)?.transactionCode;
+                final alreadyImported =
+                    code != null && code != 'N/A' && _importedCodes.contains(code);
                 return ListTile(
-                  leading: CircleAvatar(backgroundColor: AppTheme.primary.withOpacity(0.15),
-                      child: Icon(Icons.message, color: AppTheme.primary)),
+                  leading: CircleAvatar(
+                      backgroundColor: alreadyImported
+                          ? cs.onSurface.withOpacity(0.10)
+                          : AppTheme.primary.withOpacity(0.15),
+                      child: Icon(alreadyImported ? Icons.check : Icons.message,
+                          color: alreadyImported
+                              ? cs.onSurface.withOpacity(0.45)
+                              : AppTheme.primary)),
                   title: Text(body.length > 80 ? '${body.substring(0, 80)}...' : body,
-                      style: const TextStyle(fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: alreadyImported ? cs.onSurface.withOpacity(0.45) : null),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
                   subtitle: Row(children: [
-                    Text(preview, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primary)),
+                    Text(preview, style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600,
+                        color: alreadyImported
+                            ? cs.onSurface.withOpacity(0.45)
+                            : AppTheme.primary)),
                     if (sms.date != null) ...[
                       Text('  ·  ', style: TextStyle(color: cs.onSurface.withOpacity(0.4))),
                       Text(_formatDate(sms.date!),
                           style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.4))),
                     ],
+                    if (alreadyImported) ...[
+                      Text('  ·  ', style: TextStyle(color: cs.onSurface.withOpacity(0.4))),
+                      Text('Already imported',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                              color: AppTheme.success)),
+                    ],
                   ]),
-                  onTap: () => _autoSave ? _handleMessageAutoSave(body) : _handleMessage(body),
+                  // Still tappable when imported: the server refuses the
+                  // duplicate and says so, which beats an unexplained dead row.
+                  onTap: () => _autoSave
+                      ? _handleMessageAutoSave(body, smsDate: sms.date)
+                      : _handleMessage(body, smsDate: sms.date),
                 );
               },
             ))),
@@ -300,6 +392,8 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
             final text = _pasteController.text.trim();
             if (text.isEmpty) { _showError('Please paste an M-Pesa message first.'); return; }
             if (_autoSave) { _handleMessageAutoSave(text); } else { _handleMessage(text); }
+            // No smsDate here: pasted text carries no envelope, so the date
+            // comes from inside the message body if it has one.
           },
           icon: const Icon(Icons.auto_fix_high_outlined),
           label: _saving
@@ -361,10 +455,18 @@ class _ResultSheet extends StatefulWidget {
   final MpesaParseResult result;
   final String           initialCategory;
   final bool             fromMemory;
-  final Future<void> Function(MpesaParseResult, String, String, String, {bool fromSheet}) onSave;
+
+  /// The date this transaction will be filed under. Shown to the user, because
+  /// it can come from the message body rather than the SMS envelope, and a
+  /// wrong guess should be visible rather than silent.
+  final DateTime         transactionDate;
+
+  final Future<void> Function(MpesaParseResult, String, String, String, DateTime,
+      {bool fromSheet}) onSave;
 
   const _ResultSheet({required this.result, required this.initialCategory,
-      required this.fromMemory, required this.onSave});
+      required this.fromMemory, required this.transactionDate,
+      required this.onSave});
 
   @override
   State<_ResultSheet> createState() => _ResultSheetState();
@@ -375,6 +477,18 @@ class _ResultSheetState extends State<_ResultSheet> {
   late String _selectedIncomeType;
   late TextEditingController _descController;
   bool _saving = false;
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  String _sheetDate(DateTime d) {
+    final today = DateTime.now();
+    final isToday = d.year == today.year && d.month == today.month && d.day == today.day;
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    final stamp = '${d.day} ${_months[d.month - 1]} ${d.year}, $hh:$mm';
+    return isToday ? '$stamp (today)' : stamp;
+  }
 
   static const _incomeTypes = ['monthly', 'helb', 'parental', 'gig', 'daily', 'other'];
 
@@ -425,7 +539,21 @@ class _ResultSheetState extends State<_ResultSheet> {
                     style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
               ),
             ]),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 14),
+
+            // ── Date this will be filed under ──────────────────────────────
+            // Visible on purpose: for a pasted message the date is read out of
+            // the message text, and a misread should be obvious before saving
+            // rather than discovered later in the wrong month.
+            Row(children: [
+              Icon(Icons.event_outlined, size: 16, color: cs.onSurface.withOpacity(0.55)),
+              const SizedBox(width: 8),
+              Text(_sheetDate(widget.transactionDate),
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.75))),
+            ]),
+
+            const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
 
@@ -509,7 +637,8 @@ class _ResultSheetState extends State<_ResultSheet> {
               onPressed: _saving ? null : () async {
                 setState(() => _saving = true);
                 await widget.onSave(widget.result, _selectedCategory,
-                    _descController.text.trim(), _selectedIncomeType, fromSheet: true);
+                    _descController.text.trim(), _selectedIncomeType,
+                    widget.transactionDate, fromSheet: true);
                 if (mounted) setState(() => _saving = false);
               },
               icon: _saving
