@@ -50,13 +50,27 @@ class AnalysisResultModel {
   final double dailyBudget;         // monthly_income / 30
 
   // ─── Spending Behavior ──────────────────────────────────────────────────────
+  final bool hasIncome;         // false when no income is recorded for the period
   final int dayOfMonth;
   final String spendingTrend;   // improving | stable | worsening_slow | worsening_fast
-  final double salaryBurnRate;
-  final bool emergencyBufferPresent;
+
+  /// Month-end spend projected from the pace so far, as a % of income. Over 100
+  /// means this month ends in deficit if nothing changes. Replaces
+  /// salaryBurnRate, whose old server-side formula reduced to 3000/day and so
+  /// carried no information about actual spending.
+  final double projectedSpendRate;
+
+  /// Months of typical spending covered by savings accumulated across all
+  /// history. Replaces emergencyBufferPresent, which was just
+  /// (income - expenses) / income >= 0.1 — the savings rate again.
+  final double emergencyFundMonths;
+
+  final int overspentDays;        // days the daily budget was exceeded
+  final int overspendingStreak;   // longest consecutive run of those days
 
   // ─── Goal ───────────────────────────────────────────────────────────────────
   final double goalProgress;    // % toward savings goal
+  final double goalPaceRatio;   // contributed / expected-by-now; 1.0 is on pace
   final String goalHealth;      // human-readable goal status string
 
   // ─── Advice & Alerts ────────────────────────────────────────────────────────
@@ -80,11 +94,15 @@ class AnalysisResultModel {
     required this.savingsRate,
     required this.expenseRate,
     required this.dailyBudget,
+    required this.hasIncome,
     required this.dayOfMonth,
     required this.spendingTrend,
-    required this.salaryBurnRate,
-    required this.emergencyBufferPresent,
+    required this.projectedSpendRate,
+    required this.emergencyFundMonths,
+    required this.overspentDays,
+    required this.overspendingStreak,
     required this.goalProgress,
+    required this.goalPaceRatio,
     required this.goalHealth,
     required this.advice,
     required this.isUrgent,
@@ -113,11 +131,15 @@ class AnalysisResultModel {
       savingsRate:            (json['savings_rate'] as num? ?? 0).toDouble(),
       expenseRate:            (json['expense_rate'] as num? ?? 0).toDouble(),
       dailyBudget:            (json['daily_budget'] as num? ?? 0).toDouble(),
+      hasIncome:              json['has_income'] ?? true,
       dayOfMonth:             json['day_of_month']        ?? DateTime.now().day,
       spendingTrend:          json['spending_trend']      ?? 'stable',
-      salaryBurnRate:         (json['salary_burn_rate'] as num? ?? 0).toDouble(),
-      emergencyBufferPresent: json['emergency_buffer_present'] ?? false,
+      projectedSpendRate:     (json['projected_spend_rate'] as num? ?? 0).toDouble(),
+      emergencyFundMonths:    (json['emergency_fund_months'] as num? ?? 0).toDouble(),
+      overspentDays:          (json['overspent_days'] as num? ?? 0).toInt(),
+      overspendingStreak:     (json['overspending_streak'] as num? ?? 0).toInt(),
       goalProgress:           (json['goal_progress'] as num? ?? 0).toDouble(),
+      goalPaceRatio:          (json['goal_pace_ratio'] as num? ?? 1).toDouble(),
       goalHealth:             json['goal_health']         ?? '',
       advice:                 List<String>.from(json['advice'] ?? []),
       isUrgent:               json['is_urgent']           ?? false,

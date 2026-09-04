@@ -1,5 +1,9 @@
+import calendar
 from collections import defaultdict
 from datetime import datetime, date
+
+from sqlalchemy import func
+
 from app_time import (local_date_of, month_range_utc, now_in, resolve_timezone,
                       today_in)
 from models import db, User, Income, Expense, Budget, SavingsGoal, GoalContribution
@@ -88,8 +92,13 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     balance = savings - total_contributions
 
     # ── Core rates ────────────────────────────────────────────────────────────
-    savings_rate = (savings / total_income * 100)        if total_income else 0.01
-    expense_rate = (total_expenses / total_income * 100) if total_income else 0.01
+    # Zero means zero. These used to fall back to 0.01 so Experta always had a
+    # non-zero number, which meant a user with no income was scored as saving
+    # 0.01% of it - hence "CRITICAL: saving less than 2% of your income" for
+    # someone with no income at all. has_income now carries that distinction.
+    has_income   = total_income > 0
+    savings_rate = (savings / total_income * 100)        if has_income else 0.0
+    expense_rate = (total_expenses / total_income * 100) if has_income else 0.0
 
     # ── Daily budget ──────────────────────────────────────────────────────────
     monthly_income = next((r.amount for r in income_records if r.income_type == "monthly"), None)
@@ -102,17 +111,23 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     # ── Luxury spending ───────────────────────────────────────────────────────
     luxury_spending_ratio = _calculate_luxury_spending_ratio(regular_expenses)
 
-    # ── Emergency buffer ──────────────────────────────────────────────────────
-    emergency_buffer_present = _check_emergency_buffer(total_income, total_expenses)
-    emergency_buffer_amount  = _calculate_emergency_buffer_amount(total_income, total_expenses)
+    # ── Emergency fund ────────────────────────────────────────────────────────
+    # Months of typical spending covered by everything saved to date. The old
+    # "emergency buffer" was (income - expenses) / income, i.e. the savings rate
+    # under another name, so the buffer rules were re-punishing a number the
+    # savings rules had already punished.
+    emergency_fund_months = _calculate_emergency_fund_months(user_id, total_expenses)
 
     # ── Goal progress — uses contributions, not net savings ───────────────────
-    goal_progress = _calculate_goal_progress(primary_goal, primary_goal_contributed)
-    goal_health   = _evaluate_goal_health(primary_goal, primary_goal_contributed, tz)
+    goal_progress   = _calculate_goal_progress(primary_goal, primary_goal_contributed)
+    goal_pace_ratio = _calculate_goal_pace_ratio(primary_goal, primary_goal_contributed, tz)
+    goal_health     = _evaluate_goal_health(primary_goal, primary_goal_contributed, tz)
 
-    # ── Salary burn rate ──────────────────────────────────────────────────────
-    day_of_month     = now.day if (month == now.month and year == now.year) else 30
-    salary_burn_rate = _calculate_salary_burn_rate(total_expenses, day_of_month)
+    # ── Spending pace ─────────────────────────────────────────────────────────
+    days_in_month    = _days_in_month(year, month)
+    day_of_month     = now.day if (month == now.month and year == now.year) else days_in_month
+    projected_spend_rate = _calculate_projected_spend_rate(
+        total_expenses, total_income, day_of_month, days_in_month)
 
     # ── Trend detection — compare with previous month ─────────────────────────
     prev_month, prev_year = (month - 1, year) if month > 1 else (12, year - 1)
@@ -152,22 +167,23 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
 
     return {
         # ── Engine fields (go into knowledge_engine.run_analysis) ─────────────
+        "has_income":                has_income,
         "income":                    total_income,
         "expenses":                  total_expenses,
         "savings_rate":              round(savings_rate, 2),
         "expense_rate":              round(expense_rate, 2),
+        "projected_spend_rate":      round(projected_spend_rate, 2),
+        "emergency_fund_months":     round(emergency_fund_months, 2),
         "overspent_days":            overspent_days,
+        "overspending_streak":       overspending_streak,
         "luxury_spending_ratio":     round(luxury_spending_ratio, 2),
-        "emergency_buffer_present":  emergency_buffer_present,
-        "emergency_buffer_amount":   round(emergency_buffer_amount, 4),
-        "goal_progress":             round(goal_progress, 2),
+        "luxury_expense_growth":     luxury_expense_growth,
         "goal_set":                  primary_goal is not None,
+        "goal_progress":             round(goal_progress, 2),
+        "goal_pace_ratio":           round(goal_pace_ratio, 3),
+        "goal_achievement_streak":   goal_achievement_streak,
         "day_of_month":              day_of_month,
         "spending_trend":            spending_trend,
-        "salary_burn_rate":          round(salary_burn_rate, 2),
-        "luxury_expense_growth":     luxury_expense_growth,
-        "overspending_streak":       overspending_streak,
-        "goal_achievement_streak":   goal_achievement_streak,
 
         # ── Extra fields returned to Flutter alongside engine results ──────────
         "savings":                   round(savings, 2),
@@ -223,14 +239,101 @@ def _calculate_luxury_spending_ratio(expenses: list) -> float:
     return (luxury_total / total * 100) if total else 0.0
 
 
-def _check_emergency_buffer(income: float, expenses: float) -> bool:
-    """True if at least 10% of income remains after expenses."""
-    return (income - expenses) >= (0.10 * income)
+def _days_in_month(year: int, month: int) -> int:
+    return calendar.monthrange(year, month)[1]
 
 
-def _calculate_emergency_buffer_amount(income: float, expenses: float) -> float:
-    """Buffer remaining as a fraction of income (e.g. 0.15 = 15%)."""
-    return ((income - expenses) / income) if income else 0.0
+def _calculate_emergency_fund_months(user_id: int, current_expenses: float) -> float:
+    """
+    How many months of typical spending everything saved to date would cover.
+
+    This replaces the old "emergency buffer", which was
+    (income - expenses) / income - the savings rate wearing a different name,
+    so the buffer rules simply re-punished the savings rules' finding.
+
+    A real emergency fund is cumulative: a student can save nothing this month
+    and still be three months deep from earlier ones. Two aggregate queries
+    rather than a loop over history.
+    """
+    lifetime_income = db.session.query(
+        func.coalesce(func.sum(Income.amount), 0.0)
+    ).filter(Income.user_id == user_id).scalar() or 0.0
+
+    lifetime_spend = db.session.query(
+        func.coalesce(func.sum(Expense.amount), 0.0)
+    ).filter(
+        Expense.user_id == user_id,
+        Expense.expense_type != "one-time",
+    ).scalar() or 0.0
+
+    surplus = lifetime_income - lifetime_spend
+    if surplus <= 0:
+        return 0.0
+
+    # Compare against a typical month rather than this one, so a quiet month
+    # does not make the fund look enormous.
+    months_active = db.session.query(
+        func.count(func.distinct(func.strftime("%Y-%m", Expense.date_added)))
+    ).filter(Expense.user_id == user_id).scalar() or 0
+
+    if months_active > 0:
+        typical_monthly_spend = lifetime_spend / months_active
+    else:
+        typical_monthly_spend = current_expenses
+
+    if typical_monthly_spend <= 0:
+        return 0.0
+    return surplus / typical_monthly_spend
+
+
+def _calculate_projected_spend_rate(total_expenses: float, total_income: float,
+                                    day_of_month: int, days_in_month: int) -> float:
+    """
+    Month-end spending projected from the pace so far, as a % of income.
+
+    The old salary_burn_rate reduced to 3000 / days_so_far - entirely
+    independent of how much had actually been spent, so no rule could usefully
+    read it (and none did). This measures rate rather than total, which is what
+    makes it independent of the savings rate: spending 40% of income in three
+    days projects well past 100% by month-end and is worth flagging on day 3.
+    """
+    if total_income <= 0 or day_of_month <= 0:
+        return 0.0
+    # Extrapolating a month from two or three days produces wild numbers - one
+    # ordinary shop on day 2 projects to several times the month's income. The
+    # rules ignore the projection before day 5 for that reason, and returning
+    # 0.0 here keeps the same noise out of anything else that reads the field.
+    if day_of_month < 5:
+        return 0.0
+    daily_rate = total_expenses / day_of_month
+    projected  = daily_rate * days_in_month
+    return (projected / total_income) * 100
+
+
+def _calculate_goal_pace_ratio(goal, contributed: float, tz) -> float:
+    """
+    Contributed divided by what the deadline implies by now. 1.0 is on pace.
+
+    The rules previously judged absolute progress, so a goal created yesterday
+    sat at "less than 10% achieved" and cost 30 points - which is how a student
+    saving 70% of their income came to be labelled an Overspender. The pacing
+    maths already existed in _evaluate_goal_health; this exposes it as a fact.
+    """
+    if not goal or goal.goal_amount <= 0:
+        return 1.0
+
+    total_days  = (goal.due_date - goal.date_set.date()).days
+    days_passed = (today_in(tz) - goal.date_set.date()).days
+    if total_days <= 0:
+        return 1.0
+    if days_passed <= 0:
+        # Nothing is expected yet, so nobody is behind.
+        return 1.0
+
+    expected = goal.goal_amount * (min(days_passed, total_days) / total_days)
+    if expected <= 0:
+        return 1.0
+    return contributed / expected
 
 
 def _calculate_goal_progress(goal: SavingsGoal, contributed: float) -> float:
@@ -273,16 +376,6 @@ def _evaluate_goal_health(goal: SavingsGoal, contributed: float, tz) -> str:
         return "Warning: You are behind on your savings goal. Consider saving more aggressively."
     else:
         return "Critical: You are far behind on your goal. Immediate action required to catch up!"
-
-
-def _calculate_salary_burn_rate(total_expenses: float, day_of_month: int) -> float:
-    """Projected monthly spend based on pace so far, as % of current total."""
-    if total_expenses == 0 or day_of_month < 1:
-        return 0.0
-    days_so_far       = min(day_of_month, 15)
-    daily_rate        = total_expenses / days_so_far
-    projected_monthly = daily_rate * 30
-    return round((projected_monthly / total_expenses) * 100, 2)
 
 
 def _detect_spending_trend(prev_savings: float, current_savings: float) -> str:

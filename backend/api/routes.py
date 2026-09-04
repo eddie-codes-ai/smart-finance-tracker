@@ -1053,6 +1053,20 @@ def analyze():
         "goal_health":         payload["goal_health"],
         "category_variance":   payload["category_variance"],
         "auto_notify":         auto_notify_status,
+
+        # The dashboard has always rendered a trend icon and label from
+        # spending_trend, but the response never carried it, so it silently
+        # showed "stable" for everyone. These are the engine's own facts, now
+        # exposed so the app can show what the score was actually based on.
+        "has_income":            payload["has_income"],
+        "spending_trend":        payload["spending_trend"],
+        "projected_spend_rate":  payload["projected_spend_rate"],
+        "emergency_fund_months": payload["emergency_fund_months"],
+        "overspent_days":        payload["overspent_days"],
+        "overspending_streak":   payload["overspending_streak"],
+        "goal_progress":         payload["goal_progress"],
+        "goal_pace_ratio":       payload["goal_pace_ratio"],
+        "day_of_month":          payload["day_of_month"],
     })
 
 

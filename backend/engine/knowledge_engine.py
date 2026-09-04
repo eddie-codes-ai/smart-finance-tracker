@@ -1,4 +1,3 @@
-from datetime import datetime
 from engine.facts import FinancialProfile
 from engine.rules import FinancialAdvisor
 
@@ -7,54 +6,41 @@ def run_analysis(payload: dict) -> dict:
     """
     Entry point for the expert system.
 
-    Accepts a processed payload (already computed by analysis_service),
-    declares the FinancialProfile fact, runs all rules, finalizes,
-    and returns a clean results dict for the API layer to return to Flutter.
+    Takes the payload computed by analysis_service, declares it as a
+    FinancialProfile, runs the rules and returns a result for the API layer.
+
+    Note there is no longer a "no data" short-circuit here. The rules handle an
+    empty period themselves, which keeps one set of statements about a user's
+    finances in one place instead of two.
     """
-
-    # ── No-data guard ────────────────────────────────────────────────────────
-    # If the student has not logged any income or expenses yet, skip the engine
-    # entirely and return a neutral placeholder result. Without this check,
-    # the engine runs on near-zero fallback values and produces a misleading
-    # score (e.g. 60) for a brand new account with no transactions.
-    income   = payload.get("income",   0)
-    expenses = payload.get("expenses", 0)
-
-    if income <= 0.01 and expenses <= 0.01:
-        return {
-            "score":      0,
-            "category":   "No Data",
-            "persona":    "No transactions recorded yet",
-            "projection": "Add income and expenses to get your financial projection",
-            "advice":     [],
-            "is_urgent":  False,
-        }
-    # ─────────────────────────────────────────────────────────────────────────
+    has_income = bool(payload.get("has_income", False))
 
     advisor = FinancialAdvisor()
     advisor.reset()
 
+    projected = _safe_float(payload.get("projected_spend_rate"))
+
     advisor.declare(FinancialProfile(
-        income                   = _safe_float(payload.get("income")),
-        expenses                 = _safe_float(payload.get("expenses")),
-        savings_rate             = _safe_float(payload.get("savings_rate")),
-        expense_rate             = _safe_float(payload.get("expense_rate")),
-        overspent_days           = _safe_int(payload.get("overspent_days")),
-        luxury_spending_ratio    = _safe_float(payload.get("luxury_spending_ratio")),
-        emergency_buffer_present = bool(payload.get("emergency_buffer_present", False)),
-        emergency_buffer_amount  = _safe_float(payload.get("emergency_buffer_amount")),
-        goal_progress            = _safe_float(payload.get("goal_progress")),
-        goal_set                 = bool(payload.get("goal_set", False)),
-        day_of_month             = _safe_int(payload.get("day_of_month", datetime.now().day)),
-        spending_trend           = payload.get("spending_trend", "stable"),
-        salary_burn_rate         = _safe_float(payload.get("salary_burn_rate")),
-        luxury_expense_growth    = payload.get("luxury_expense_growth", "stable"),
-        overspending_streak      = _safe_int(payload.get("overspending_streak")),
-        goal_achievement_streak  = _safe_int(payload.get("goal_achievement_streak")),
+        has_income              = has_income,
+        income                  = _safe_float(payload.get("income")),
+        expenses                = _safe_float(payload.get("expenses")),
+        savings_rate            = _safe_float(payload.get("savings_rate")),
+        projected_spend_rate    = projected,
+        day_of_month            = _safe_int(payload.get("day_of_month")),
+        emergency_fund_months   = _safe_float(payload.get("emergency_fund_months")),
+        overspent_days          = _safe_int(payload.get("overspent_days")),
+        overspending_streak     = _safe_int(payload.get("overspending_streak")),
+        luxury_spending_ratio   = _safe_float(payload.get("luxury_spending_ratio")),
+        luxury_expense_growth   = payload.get("luxury_expense_growth", "stable"),
+        goal_set                = bool(payload.get("goal_set", False)),
+        goal_progress           = _safe_float(payload.get("goal_progress")),
+        goal_pace_ratio         = _safe_float(payload.get("goal_pace_ratio")),
+        goal_achievement_streak = _safe_int(payload.get("goal_achievement_streak")),
+        spending_trend          = payload.get("spending_trend", "stable"),
     ))
 
     advisor.run()
-    advisor.finalize(expense_rate=_safe_float(payload.get("expense_rate")))
+    advisor.finalize(projected_spend_rate=projected, has_income=has_income)
 
     return {
         "score":      advisor.score,
@@ -62,36 +48,48 @@ def run_analysis(payload: dict) -> dict:
         "persona":    advisor.persona,
         "projection": advisor.projection,
         "advice":     advisor.advice,
-        "is_urgent":  _is_urgent(advisor.score, payload),
+        "is_urgent":  _is_urgent(advisor.score, payload, has_income),
     }
 
 
-def _is_urgent(score: int, payload: dict) -> bool:
+def _is_urgent(score: int, payload: dict, has_income: bool) -> bool:
     """
-    Determines if the guardian should be auto-notified.
-    Triggers if any of the three urgency conditions are met.
+    Whether the guardian should be alerted automatically.
+
+    Requires real income data. Without it the rates are unknown rather than
+    alarming, and alerting someone's guardian because they have not yet entered
+    a payslip is worse than not alerting at all.
     """
-    worsening_fast  = payload.get("spending_trend") == "worsening_fast"
-    mid_month_blown = (
-        payload.get("day_of_month", 0) >= 15 and
-        payload.get("expense_rate", 0) > 80
-    )
-    return score < 40 or worsening_fast or mid_month_blown
+    if not has_income:
+        return False
+
+    spending_far_over = _safe_float(payload.get("projected_spend_rate")) > 130
+    collapsing        = payload.get("spending_trend") == "worsening_fast"
+    return score < 35 or (spending_far_over and collapsing)
 
 
 # ─── Safe type helpers ────────────────────────────────────────────────────────
 
-def _safe_float(value, fallback: float = 0.01) -> float:
-    """Convert to float safely. Uses a small fallback to avoid Experta zero issues."""
+def _safe_float(value, fallback: float = 0.0) -> float:
+    """
+    Convert to float, defaulting to 0.0.
+
+    This used to substitute 0.01 for any zero "to avoid Experta zero issues",
+    which meant a user with no income was scored as though they saved 0.01% of
+    it - producing "CRITICAL: saving less than 2% of your income" for someone
+    with no income at all. Zero is now allowed to mean zero, and the has_income
+    flag carries the distinction.
+    """
     try:
-        v = float(value)
-        return v if v != 0 else fallback
+        result = float(value)
     except (TypeError, ValueError):
         return fallback
+    if result != result:          # NaN
+        return fallback
+    return result
 
 
 def _safe_int(value, fallback: int = 0) -> int:
-    """Convert to int safely."""
     try:
         return int(float(value))
     except (TypeError, ValueError):
