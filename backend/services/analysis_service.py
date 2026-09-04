@@ -74,19 +74,28 @@ def compute_analysis_payload(user_id: int, month: int = None, year: int = None) 
     savings = total_income - total_expenses
 
     # ── Goal contributions ────────────────────────────────────────────────────
-    # Total contributed toward the primary goal (used for goal progress)
-    primary_goal_contributed = 0.0
-    if primary_goal:
-        primary_goal_contributed = sum(
-            c.amount for c in GoalContribution.query.filter_by(goal_id=primary_goal.id).all()
-        )
+    # Summed in the database rather than in Python. This previously ran one
+    # query per goal and loaded every contribution row just to add up a single
+    # column - so a student with five goals and a year of contributions paid for
+    # six queries and hundreds of hydrated objects on every dashboard refresh.
+    goal_ids = [g.id for g in goals]
+    contributed_by_goal = {}
+    if goal_ids:
+        rows = db.session.query(
+            GoalContribution.goal_id,
+            func.coalesce(func.sum(GoalContribution.amount), 0.0),
+        ).filter(
+            GoalContribution.goal_id.in_(goal_ids)
+        ).group_by(GoalContribution.goal_id).all()
+        contributed_by_goal = {goal_id: float(total) for goal_id, total in rows}
 
-    # Total contributions across ALL active goals (reduces available balance)
-    total_contributions = 0.0
-    for goal in goals:
-        total_contributions += sum(
-            c.amount for c in GoalContribution.query.filter_by(goal_id=goal.id).all()
-        )
+    # Toward the primary goal, for goal progress.
+    primary_goal_contributed = (
+        contributed_by_goal.get(primary_goal.id, 0.0) if primary_goal else 0.0
+    )
+
+    # Across ALL active goals, which reduces the free balance.
+    total_contributions = float(sum(contributed_by_goal.values()))
 
     # Balance = what the student actually has free after expenses AND goal commitments
     balance = savings - total_contributions

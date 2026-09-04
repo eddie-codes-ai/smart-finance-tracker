@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 
 from flask import Flask, jsonify, request
+from sqlalchemy import text
 from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -44,13 +45,41 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     _configure_jwt(JWTManager(app))
-    CORS(app)
+
+    # Every origin was allowed unconditionally. It matters less here than it
+    # would on a web app - native clients ignore CORS entirely - but there is no
+    # reason to leave it open. Set ALLOWED_ORIGINS to a comma-separated list to
+    # restrict it; the default stays permissive so local development and the
+    # Flutter client keep working untouched.
+    allowed = os.environ.get("ALLOWED_ORIGINS", "").strip()
+    if allowed:
+        CORS(app, origins=[o.strip() for o in allowed.split(",") if o.strip()])
+    else:
+        CORS(app)
 
     # ── Blueprints ────────────────────────────────────────────────────────────
     app.register_blueprint(api)
 
     # ── Error handlers ────────────────────────────────────────────────────────
     _register_error_handlers(app)
+
+    # ── Health check ──────────────────────────────────────────────────────────
+    @app.route("/health")
+    def health():
+        """
+        Whether this instance is actually able to serve requests.
+
+        Deliberately checks the database rather than just returning 200: a
+        container that boots but cannot reach Postgres looks perfectly healthy
+        to a process check while failing every real request. Unauthenticated
+        and outside /api, so a platform can poll it.
+        """
+        try:
+            db.session.execute(text("SELECT 1"))
+            return jsonify({"status": "ok", "database": "ok"}), 200
+        except Exception:
+            app.logger.exception("Health check could not reach the database")
+            return jsonify({"status": "error", "database": "unreachable"}), 503
 
     # Schema is owned by Alembic, not by db.create_all(). create_all() ran in
     # every Gunicorn worker on every boot, and it only ever adds missing
