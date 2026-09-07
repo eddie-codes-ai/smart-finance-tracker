@@ -1,4 +1,4 @@
-from experta import KnowledgeEngine, Rule, P
+from engine.expert import KnowledgeEngine, Rule, P
 from engine.facts import FinancialProfile
 
 

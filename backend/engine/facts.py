@@ -1,4 +1,4 @@
-from experta import Fact, Field
+from engine.expert import Fact, Field
 
 
 class FinancialProfile(Fact):
