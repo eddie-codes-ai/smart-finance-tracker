@@ -15,7 +15,16 @@ import '../../models/analysis_result_model.dart';
 import '../helb/helb_banner_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, this.onSeeAllTransactions});
+
+  /// Switches the shell to the Transactions tab.
+  ///
+  /// Supplied by MainShell rather than navigating here, because none of the
+  /// tab screens carries its own Scaffold - pushing one as a route produced a
+  /// copy with no app bar, no back button and no bottom bar, escapable only by
+  /// the system back gesture.
+  final VoidCallback? onSeeAllTransactions;
+
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -83,7 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const HelbBannerWidget(),
             const SizedBox(height: 20),
             _buildSectionHeader('Recent Transactions',
-                onSeeAll: () => Navigator.pushNamed(context, AppRoutes.transactions)),
+                onSeeAll: widget.onSeeAllTransactions),
             _buildRecentTransactions(income, expense),
           ],
         ),
@@ -158,13 +167,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _trendIcon(result.spendingTrend),
               const SizedBox(width: 6),
               Text(_trendLabel(result.spendingTrend), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              const Spacer(),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.insights),
-                style: TextButton.styleFrom(foregroundColor: Colors.white, padding: EdgeInsets.zero,
-                    minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                child: const Text('View Insights →', style: TextStyle(fontSize: 12)),
-              ),
             ],
           ),
         ],
@@ -222,18 +224,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white), minHeight: 6),
           ),
           const SizedBox(height: 12),
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.trending_flat, size: 16, color: Colors.white70),
-              const SizedBox(width: 6),
-              const Text('Spending stable', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              const Spacer(),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.insights),
-                style: TextButton.styleFrom(foregroundColor: Colors.white, padding: EdgeInsets.zero,
-                    minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                child: const Text('View Insights →', style: TextStyle(fontSize: 12)),
-              ),
+              Icon(Icons.trending_flat, size: 16, color: Colors.white70),
+              SizedBox(width: 6),
+              Text('Spending stable', style: TextStyle(color: Colors.white70, fontSize: 12)),
             ],
           ),
         ],

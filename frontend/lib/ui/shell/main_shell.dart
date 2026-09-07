@@ -21,8 +21,15 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    DashboardScreen(), TransactionsScreen(), BudgetScreen(), ReportsScreen(), InsightsScreen(),
+  // A getter rather than a const field so the dashboard can be handed a way to
+  // switch tabs. Rebuilding these widget objects each frame is free - the
+  // IndexedStack keeps each tab's State alive by position regardless.
+  List<Widget> get _screens => [
+    DashboardScreen(onSeeAllTransactions: () => _onTabTapped(1)),
+    const TransactionsScreen(),
+    const BudgetScreen(),
+    const ReportsScreen(),
+    const InsightsScreen(),
   ];
 
   void _onTabTapped(int index) => setState(() => _currentIndex = index);
