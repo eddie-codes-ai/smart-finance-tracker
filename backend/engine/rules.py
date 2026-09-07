@@ -3,12 +3,13 @@ from engine.facts import FinancialProfile
 
 
 # ─── Advice severity ──────────────────────────────────────────────────────────
-# Rules fire in whatever order Experta resolves them, so without this the advice
-# list came out in an arbitrary order: a CRITICAL item could sit fifth while
-# "spending habits are stable" sat first. The insights screen renders the list
-# in order, and the guardian report sends only the first two - so a guardian
-# could be told "spending habits are stable" while the critical finding went
-# unmentioned. finalize() sorts on this.
+# Rules fire in the order they are written, which is grouped by subject rather
+# than by urgency, so without this the advice list would follow the layout of
+# this file: a CRITICAL item could sit fifth while "spending habits are stable"
+# sat first. The insights screen renders the list in order, and the guardian
+# report sends only the first two - so a guardian could be told "spending habits
+# are stable" while the critical finding went unmentioned. finalize() sorts on
+# this.
 CRITICAL = 0
 WARNING  = 1
 CAUTION  = 2

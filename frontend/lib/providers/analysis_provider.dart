@@ -1,5 +1,5 @@
 // lib/providers/analysis_provider.dart
-// Manages the Experta engine analysis result.
+// Manages the rule engine analysis result.
 // Called by Dashboard and Insights screens.
 // A single analyze() call returns everything both screens need.
 

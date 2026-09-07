@@ -74,7 +74,7 @@ class AnalysisResultModel {
   final String goalHealth;      // human-readable goal status string
 
   // ─── Advice & Alerts ────────────────────────────────────────────────────────
-  final List<String> advice;    // list of advice strings fired by Experta rules
+  final List<String> advice;    // advice strings fired by the backend rules
   final bool isUrgent;          // true if guardian auto-notify was triggered
 
   // ─── Budget Variance Per Category ───────────────────────────────────────────

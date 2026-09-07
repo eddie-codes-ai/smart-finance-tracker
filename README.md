@@ -10,7 +10,7 @@ A mobile-first financial management app built for Kenyan university students —
 ## Highlights
 
 - Reads M-Pesa transaction SMS directly from the device inbox for automatic expense tracking — no manual entry required, with duplicate detection so the same message can't be imported twice
-- Experta rule-based expert system with 55 rules scoring financial health (0–100) and assigning a financial persona, across ten independent dimensions: savings rate, spending pace, emergency fund, daily discipline, overspending persistence, discretionary spending, budget adherence, goal pacing, goal realism, and month-over-month direction
+- Rule-based expert system with 55 rules scoring financial health (0–100) and assigning a financial persona, across ten independent dimensions: savings rate, spending pace, emergency fund, daily discipline, overspending persistence, discretionary spending, budget adherence, goal pacing, goal realism, and month-over-month direction
 - Flask + SQLAlchemy REST API across 44 endpoints, with expiring JWT sessions, silent token refresh, and server-side revocation on logout or password change
 - Per-user time zones — months and daily spending are grouped in the user's own zone, so figures stay correct when travelling
 - SQLite in development, PostgreSQL in production (auto-detected from environment), with Alembic migrations
@@ -20,7 +20,7 @@ A mobile-first financial management app built for Kenyan university students —
 
 ## Tech Stack
 
-**Backend** — Flask, SQLAlchemy, Alembic (Flask-Migrate), PostgreSQL/SQLite, JWT (Flask-JWT-Extended), Experta, google-auth, Twilio, Gunicorn
+**Backend** — Flask, SQLAlchemy, Alembic (Flask-Migrate), PostgreSQL/SQLite, JWT (Flask-JWT-Extended), google-auth, Twilio, Gunicorn
 **Frontend** — Flutter, fl_chart, local_auth, flutter_sms_inbox, flutter_timezone, Google Sign-In
 
 ## Project Structure
@@ -29,7 +29,7 @@ A mobile-first financial management app built for Kenyan university students —
 smart-finance-tracker/
 ├── backend/
 │   ├── api/                # REST routes
-│   ├── engine/             # Experta rule-based expert system
+│   ├── engine/             # rule-based expert system (55 rules, no dependency)
 │   ├── services/           # analysis, email, guardian, notifications
 │   ├── migrations/         # Alembic revisions
 │   ├── tests/              # runnable with the project venv, no pytest needed
@@ -93,11 +93,11 @@ Plain `http://` only works in debug builds — see
 
 ## Tests
 
-167 tests, none of which need pytest or any extra dependency.
+190 tests, none of which need pytest or any extra dependency.
 
 ```bash
 cd backend
-venv/Scripts/python tests/test_engine_scoring.py     # and the other 7 files
+venv/Scripts/python tests/test_engine_scoring.py     # and the other 10 files
 ```
 
 ```bash

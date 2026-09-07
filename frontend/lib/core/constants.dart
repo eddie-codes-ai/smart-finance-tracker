@@ -65,7 +65,7 @@ class AppConstants {
   ];
 
   // ─── Score Category Labels ──────────────────────────────────────────────────
-  // These match the finalize() output from the Experta engine.
+  // These match the finalize() output from the backend rule engine.
   static const Map<String, String> scoreCategories = {
     'Critical': 'Critical',
     'At Risk': 'At Risk',
