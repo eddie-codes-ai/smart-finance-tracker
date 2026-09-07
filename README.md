@@ -63,8 +63,9 @@ python app.py
 `flask db upgrade` is how the schema is created and updated — Alembic owns it.
 `migrate.py` is a deprecated stub kept only to point at the right command.
 
-Python **3.9** is required: Experta does not work on newer versions, which is
-why the Dockerfile pins `python:3.9-slim`.
+Python **3.13** is what the Dockerfile and CI use. Anything from 3.10 up should
+work; the old 3.9 floor was a transitive pin from Experta, which the backend no
+longer depends on.
 
 ### Frontend
 
