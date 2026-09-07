@@ -133,8 +133,8 @@ class _GuardianScreenState extends State<GuardianScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.primary.withOpacity(0.07), borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
+        color: AppTheme.primary.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Row(children: [
@@ -145,7 +145,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
         const SizedBox(height: 8),
         Text('Guardian Link lets you connect a trusted person (parent, guardian, or mentor) who receives '
             'WhatsApp/SMS reports about your financial health. This is optional and you remain in full control of your finances.',
-            style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6), height: 1.4)),
+            style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6), height: 1.4)),
       ]),
     );
   }
@@ -156,7 +156,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: cs.surface, borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Form(
         key: _formKey,
@@ -164,7 +164,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
           Text('Link a Guardian', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
           const SizedBox(height: 4),
           Text('Enter their phone number. They will receive reports via WhatsApp, or SMS if WhatsApp is unavailable.',
-              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
           const SizedBox(height: 18),
           TextFormField(
             controller: _phoneController,
@@ -211,13 +211,13 @@ class _GuardianScreenState extends State<GuardianScreen> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: cs.surface, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.success.withOpacity(0.4)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+          border: Border.all(color: AppTheme.success.withValues(alpha: 0.4)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: AppTheme.success.withOpacity(0.1), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: AppTheme.success.withValues(alpha: 0.1), shape: BoxShape.circle),
                 child: const Icon(Icons.shield, color: AppTheme.success, size: 24)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -229,10 +229,10 @@ class _GuardianScreenState extends State<GuardianScreen> {
           ]),
           const Divider(height: 24),
           Row(children: [
-            Icon(Icons.notifications_outlined, size: 15, color: cs.onSurface.withOpacity(0.5)),
+            Icon(Icons.notifications_outlined, size: 15, color: cs.onSurface.withValues(alpha: 0.5)),
             const SizedBox(width: 6),
             Text('Last notified: $lastNotifiedFmt',
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
           ]),
           const SizedBox(height: 16),
           SizedBox(
@@ -263,7 +263,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
       const SizedBox(height: 10),
       if (report == null)
         Text('No reports sent yet. Tap "Send Report Now" to send your first one.',
-            style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13))
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13))
       else
         Container(
           width: double.infinity, padding: const EdgeInsets.all(14),
@@ -274,7 +274,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                    color: (report.trigger == 'auto' ? AppTheme.warning : AppTheme.info).withOpacity(0.1),
+                    color: (report.trigger == 'auto' ? AppTheme.warning : AppTheme.info).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text(report.trigger == 'auto' ? 'Auto-triggered' : 'Manually sent',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
@@ -284,7 +284,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                    color: AppTheme.scoreColor(_scoreToCategory(report.score)).withOpacity(0.1),
+                    color: AppTheme.scoreColor(_scoreToCategory(report.score)).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text('Score: ${report.score}/100',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
@@ -292,7 +292,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
               ),
               const Spacer(),
               Text(DateFormat('dd MMM, hh:mm a').format(DateTime.parse(report.createdAt).toLocal()),
-                  style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+                  style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
             ]),
             Divider(height: 16, color: divider),
             Text(report.reportText, style: TextStyle(fontSize: 12, color: cs.onSurface,
@@ -311,7 +311,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
           border: Border.all(color: divider)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.info_outline, size: 16, color: cs.onSurface.withOpacity(0.5)),
+          Icon(Icons.info_outline, size: 16, color: cs.onSurface.withValues(alpha: 0.5)),
           const SizedBox(width: 8),
           Text('When is your guardian auto-notified?',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
@@ -325,7 +325,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
             text: 'More than 80% of income spent before mid-month'),
         const SizedBox(height: 8),
         Text('Auto-notifications have a 24-hour cooldown to prevent spam. Manual notifications (above) can be sent at any time.',
-            style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6), height: 1.4)),
+            style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6), height: 1.4)),
       ]),
     );
   }
@@ -337,7 +337,7 @@ class _GuardianScreenState extends State<GuardianScreen> {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 15, color: color),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)))),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)))),
       ]),
     );
   }

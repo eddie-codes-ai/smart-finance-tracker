@@ -104,8 +104,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(14),
-          border: isAchieved ? Border.all(color: AppTheme.success.withOpacity(0.5)) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+          border: isAchieved ? Border.all(color: AppTheme.success.withValues(alpha: 0.5)) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Column(
           children: [
@@ -118,7 +118,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: progressColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: progressColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                         child: Icon(Icons.flag_outlined, size: 20, color: progressColor),
                       ),
                       const SizedBox(width: 12),
@@ -126,7 +126,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       if (isAchieved)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppTheme.success.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: AppTheme.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                           child: const Text('✓ Achieved', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.success)),
                         ),
                     ],
@@ -152,26 +152,26 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   ]),
                   const SizedBox(height: 10),
                   Text('Target: ${AppConstants.currency} ${fmt.format(goal.goalAmount)}',
-                      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                      style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
                   if (dueDate != null) ...[
                     const SizedBox(height: 4),
                     Row(children: [
-                      Icon(Icons.calendar_today_outlined, size: 13, color: cs.onSurface.withOpacity(0.6)),
+                      Icon(Icons.calendar_today_outlined, size: 13, color: cs.onSurface.withValues(alpha: 0.6)),
                       const SizedBox(width: 4),
                       Text('Due ${dateFmt.format(dueDate)}',
-                          style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                          style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
                       const SizedBox(width: 10),
                       if (daysLeft != null)
                         Text(
                           daysLeft > 0 ? '$daysLeft days left' : daysLeft == 0 ? 'Due today!' : 'Overdue by ${-daysLeft} days',
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                              color: daysLeft < 0 ? AppTheme.error : daysLeft <= 7 ? AppTheme.warning : cs.onSurface.withOpacity(0.6)),
+                              color: daysLeft < 0 ? AppTheme.error : daysLeft <= 7 ? AppTheme.warning : cs.onSurface.withValues(alpha: 0.6)),
                         ),
                     ]),
                   ],
                   const SizedBox(height: 6),
                   Text('Swipe left to mark as complete',
-                      style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.4), fontStyle: FontStyle.italic)),
+                      style: TextStyle(fontSize: 10, color: cs.onSurface.withValues(alpha: 0.4), fontStyle: FontStyle.italic)),
                 ],
               ),
             ),
@@ -183,9 +183,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.06),
+                    color: AppTheme.primary.withValues(alpha: 0.06),
                     borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(14), bottomRight: Radius.circular(14)),
-                    border: Border(top: BorderSide(color: AppTheme.primary.withOpacity(0.15))),
+                    border: Border(top: BorderSide(color: AppTheme.primary.withValues(alpha: 0.15))),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.add_circle_outline, size: 16, color: AppTheme.primary),
@@ -223,18 +223,18 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 Row(children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                     child: const Icon(Icons.savings_outlined, size: 20, color: AppTheme.primary),
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Add to ${goal.name}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: cs.onSurface)),
                     Text('Already saved: ${AppConstants.currency} ${NumberFormat('#,##0.00', 'en_US').format(goal.totalContributed)}',
-                        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                        style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
                   ])),
                 ]),
                 const SizedBox(height: 20),
-                Text('Amount (KES)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+                Text('Amount (KES)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: amountController,
@@ -259,7 +259,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       side: const BorderSide(color: AppTheme.primary))).toList(),
                 ),
                 const SizedBox(height: 16),
-                Text('Note (optional)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+                Text('Note (optional)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
                 const SizedBox(height: 8),
                 TextFormField(controller: noteController, textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(hintText: 'e.g. Saved from HELB, Monthly deposit...', prefixIcon: Icon(Icons.note_outlined))),
@@ -305,8 +305,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.07), borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.2))),
+          color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
         const SizedBox(height: 3),
@@ -319,12 +319,12 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Widget _buildEmptyState() {
     final cs = Theme.of(context).colorScheme;
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.flag_outlined, size: 52, color: cs.onSurface.withOpacity(0.4)),
+      Icon(Icons.flag_outlined, size: 52, color: cs.onSurface.withValues(alpha: 0.4)),
       const SizedBox(height: 12),
       Text('No active savings goals.', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
       const SizedBox(height: 6),
       Text('Set a goal and start contributing\ntowards it every month.',
-          textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+          textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
       const SizedBox(height: 20),
       ElevatedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.addGoal),
           icon: const Icon(Icons.add), label: const Text('Add Your First Goal')),

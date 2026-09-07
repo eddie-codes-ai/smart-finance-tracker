@@ -4,7 +4,12 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  # Raised from >=3.0.0 when withOpacity was replaced by withValues: that needs
+  # Flutter 3.27, activeThumbColor 3.31 and DropdownButtonFormField.initialValue
+  # 3.33. Declaring the real floor makes an old SDK fail with one clear message
+  # instead of a pile of "method not found".
+  sdk: '>=3.9.0 <4.0.0'
+  flutter: '>=3.33.0'
 
 dependencies:
   flutter:

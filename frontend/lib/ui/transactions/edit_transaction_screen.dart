@@ -229,7 +229,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                   ),
                   child: Row(children: [
                     Icon(Icons.calendar_today_outlined, size: 17,
-                        color: cs.onSurface.withOpacity(0.55)),
+                        color: cs.onSurface.withValues(alpha: 0.55)),
                     const SizedBox(width: 12),
                     Expanded(child: Text(
                         DateFormat('EEE, d MMM yyyy').format(_selectedDate),
@@ -266,7 +266,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'One-time expenses are left out of your spending totals and health score.',
-                  style: TextStyle(fontSize: 11.5, color: cs.onSurface.withOpacity(0.5)),
+                  style: TextStyle(fontSize: 11.5, color: cs.onSurface.withValues(alpha: 0.5)),
                 ),
                 const SizedBox(height: 10),
                 _chips(
@@ -362,6 +362,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
   Widget _sectionLabel(String text, ColorScheme cs) {
     return Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-        color: cs.onSurface.withOpacity(0.6)));
+        color: cs.onSurface.withValues(alpha: 0.6)));
   }
 }

@@ -80,7 +80,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           child: TabBar(
             controller: _tabController,
             labelColor: AppTheme.primary,
-            unselectedLabelColor: cs.onSurface.withOpacity(0.5),
+            unselectedLabelColor: cs.onSurface.withValues(alpha: 0.5),
             indicatorColor: AppTheme.primary,
             tabs: const [
               Tab(icon: Icon(Icons.pie_chart_outline, size: 18), text: 'Expenses'),
@@ -136,7 +136,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   badgeWidget: isTouched ? Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(8),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6)]),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6)]),
                     child: Text(cat, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
                   ) : null,
                   badgePositionPercentageOffset: 1.3,
@@ -160,7 +160,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   const SizedBox(width: 10),
                   Expanded(child: Text(cat, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface))),
                   Text('${AppConstants.currency} ${fmt.format(val)}',
-                      style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+                      style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
                   const SizedBox(width: 8),
                   SizedBox(width: 44,
                       child: Text('${pct.toStringAsFixed(1)}%', textAlign: TextAlign.right,
@@ -172,8 +172,8 @@ class _ReportsScreenState extends State<ReportsScreen>
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.08), borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppTheme.error.withOpacity(0.2))),
+            decoration: BoxDecoration(color: AppTheme.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.error.withValues(alpha: 0.2))),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text('Total Expenses', style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
               Text('${AppConstants.currency} ${fmt.format(total)}',
@@ -190,7 +190,7 @@ class _ReportsScreenState extends State<ReportsScreen>
     if (_monthlyLoading) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const CircularProgressIndicator(color: AppTheme.primary), const SizedBox(height: 16),
-        Text('Loading 6-month history...', style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+        Text('Loading 6-month history...', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
       ]));
     }
     if (_monthlyData.isEmpty) return _buildEmptyState('No historical data available yet.', Icons.bar_chart_outlined);
@@ -234,12 +234,12 @@ class _ReportsScreenState extends State<ReportsScreen>
                       if (i < 0 || i >= _monthlyData.length) return const SizedBox.shrink();
                       return Padding(padding: const EdgeInsets.only(top: 6),
                           child: Text(_monthlyData[i]['label'] as String,
-                              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))));
+                              style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))));
                     }, reservedSize: 28)),
                 leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 52,
                     getTitlesWidget: (value, meta) => Text(
                         value >= 1000 ? '${(value / 1000).toStringAsFixed(0)}K' : value.toStringAsFixed(0),
-                        style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.6))))),
+                        style: TextStyle(fontSize: 10, color: cs.onSurface.withValues(alpha: 0.6))))),
                 topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
@@ -279,7 +279,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                     _tableRow('Out', '${AppConstants.currency} ${fmt.format(expenses)}', AppTheme.error),
                   ])),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('Saved', style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.6))),
+                    Text('Saved', style: TextStyle(fontSize: 10, color: cs.onSurface.withValues(alpha: 0.6))),
                     Text('${AppConstants.currency} ${fmt.format(savings)}',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
                             color: savings >= 0 ? AppTheme.success : AppTheme.error)),
@@ -297,23 +297,23 @@ class _ReportsScreenState extends State<ReportsScreen>
     return Row(children: [
       Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
       const SizedBox(width: 6),
-      Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+      Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
     ]);
   }
 
   Widget _tableRow(String label, String value, Color color) {
     return Row(children: [
-      Text('$label  ', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+      Text('$label  ', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
       Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
     ]);
   }
 
   Widget _buildEmptyState(String message, IconData icon) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(icon, size: 52, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+      Icon(icon, size: 52, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
       const SizedBox(height: 12),
       Text(message, textAlign: TextAlign.center,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
     ]));
   }
 }

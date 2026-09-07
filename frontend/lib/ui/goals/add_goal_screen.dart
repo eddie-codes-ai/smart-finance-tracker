@@ -92,7 +92,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> {
             children: [
               // ── Goal Name ────────────────────────────────────────────────
               Text('Goal Name', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _nameController,
@@ -110,7 +110,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> {
 
               // ── Target Amount ────────────────────────────────────────────
               Text('Target Amount (KES)', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _amountController,
@@ -146,7 +146,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> {
 
               // ── Due Date ─────────────────────────────────────────────────
               Text('Target Date', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: _pickDate,
@@ -160,15 +160,15 @@ class _AddGoalScreenState extends State<AddGoalScreen> {
                   ),
                   child: Row(children: [
                     Icon(Icons.calendar_today_outlined,
-                        color: cs.onSurface.withOpacity(0.5), size: 20),
+                        color: cs.onSurface.withValues(alpha: 0.5), size: 20),
                     const SizedBox(width: 12),
                     Text(
                       _dueDate != null ? dateFmt.format(_dueDate!) : 'Select a target date',
                       style: TextStyle(fontSize: 14,
-                          color: _dueDate != null ? cs.onSurface : cs.onSurface.withOpacity(0.5)),
+                          color: _dueDate != null ? cs.onSurface : cs.onSurface.withValues(alpha: 0.5)),
                     ),
                     const Spacer(),
-                    Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.5)),
+                    Icon(Icons.chevron_right, color: cs.onSurface.withValues(alpha: 0.5)),
                   ]),
                 ),
               ),

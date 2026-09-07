@@ -261,7 +261,7 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
       return Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.message_outlined, size: 56, color: cs.onSurface.withOpacity(0.4)),
+          Icon(Icons.message_outlined, size: 56, color: cs.onSurface.withValues(alpha: 0.4)),
           const SizedBox(height: 20),
           Text('SMS permission needed', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
           const SizedBox(height: 12),
@@ -298,13 +298,13 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
       _buildAutoSaveBanner(),
       if (_smsList.isEmpty)
         Expanded(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.inbox_outlined, size: 48, color: cs.onSurface.withOpacity(0.4)),
+          Icon(Icons.inbox_outlined, size: 48, color: cs.onSurface.withValues(alpha: 0.4)),
           const SizedBox(height: 16),
           Text('No M-Pesa messages found in your inbox.',
-              style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
           const SizedBox(height: 8),
           Text('Use the Paste tab to test with a sample message.',
-              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)), textAlign: TextAlign.center),
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)), textAlign: TextAlign.center),
           const SizedBox(height: 12),
           TextButton(onPressed: () => _tabController.animateTo(1), child: const Text('Go to Paste tab')),
         ])))
@@ -325,30 +325,30 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
                 return ListTile(
                   leading: CircleAvatar(
                       backgroundColor: alreadyImported
-                          ? cs.onSurface.withOpacity(0.10)
-                          : AppTheme.primary.withOpacity(0.15),
+                          ? cs.onSurface.withValues(alpha: 0.10)
+                          : AppTheme.primary.withValues(alpha: 0.15),
                       child: Icon(alreadyImported ? Icons.check : Icons.message,
                           color: alreadyImported
-                              ? cs.onSurface.withOpacity(0.45)
+                              ? cs.onSurface.withValues(alpha: 0.45)
                               : AppTheme.primary)),
                   title: Text(body.length > 80 ? '${body.substring(0, 80)}...' : body,
                       style: TextStyle(
                           fontSize: 13,
-                          color: alreadyImported ? cs.onSurface.withOpacity(0.45) : null),
+                          color: alreadyImported ? cs.onSurface.withValues(alpha: 0.45) : null),
                       maxLines: 2, overflow: TextOverflow.ellipsis),
                   subtitle: Row(children: [
                     Text(preview, style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.w600,
                         color: alreadyImported
-                            ? cs.onSurface.withOpacity(0.45)
+                            ? cs.onSurface.withValues(alpha: 0.45)
                             : AppTheme.primary)),
                     if (sms.date != null) ...[
-                      Text('  ·  ', style: TextStyle(color: cs.onSurface.withOpacity(0.4))),
+                      Text('  ·  ', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.4))),
                       Text(_formatDate(sms.date!),
-                          style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.4))),
+                          style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.4))),
                     ],
                     if (alreadyImported) ...[
-                      Text('  ·  ', style: TextStyle(color: cs.onSurface.withOpacity(0.4))),
+                      Text('  ·  ', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.4))),
                       Text('Already imported',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
                               color: AppTheme.success)),
@@ -375,7 +375,7 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
             style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 6),
         Text('Supported: send money, receive money, pay bill, buy goods, airtime.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5))),
         const SizedBox(height: 16),
         TextField(controller: _pasteController, maxLines: 7,
             decoration: const InputDecoration(
@@ -417,13 +417,13 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _autoSave ? AppTheme.primary.withOpacity(0.08) : cs.surface,
+        color: _autoSave ? AppTheme.primary.withValues(alpha: 0.08) : cs.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _autoSave ? AppTheme.primary.withOpacity(0.3) : divider),
+        border: Border.all(color: _autoSave ? AppTheme.primary.withValues(alpha: 0.3) : divider),
       ),
       child: Row(children: [
         Icon(_autoSave ? Icons.flash_on : Icons.flash_off_outlined,
-            size: 18, color: _autoSave ? AppTheme.primary : cs.onSurface.withOpacity(0.4)),
+            size: 18, color: _autoSave ? AppTheme.primary : cs.onSurface.withValues(alpha: 0.4)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_autoSave ? 'One-tap import ON' : 'One-tap import OFF',
@@ -432,9 +432,9 @@ class _MpesaImportScreenState extends State<MpesaImportScreen>
           Text(_autoSave
               ? 'Known recipients save instantly. New ones still ask.'
               : 'Tap a message to review before saving.',
-              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
         ])),
-        Switch(value: _autoSave, onChanged: _setAutoSave, activeColor: AppTheme.primary),
+        Switch(value: _autoSave, onChanged: _setAutoSave, activeThumbColor: AppTheme.primary),
       ]),
     );
   }
@@ -527,7 +527,7 @@ class _ResultSheetState extends State<_ResultSheet> {
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(isExpense ? 'Expense detected' : 'Income detected',
-                    style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+                    style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
                 Text('KES ${r.amount.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
               ])),
@@ -536,7 +536,7 @@ class _ResultSheetState extends State<_ResultSheet> {
                 decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: divider)),
                 child: Text(r.transactionCode,
-                    style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+                    style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
               ),
             ]),
 
@@ -547,10 +547,10 @@ class _ResultSheetState extends State<_ResultSheet> {
             // the message text, and a misread should be obvious before saving
             // rather than discovered later in the wrong month.
             Row(children: [
-              Icon(Icons.event_outlined, size: 16, color: cs.onSurface.withOpacity(0.55)),
+              Icon(Icons.event_outlined, size: 16, color: cs.onSurface.withValues(alpha: 0.55)),
               const SizedBox(width: 8),
               Text(_sheetDate(widget.transactionDate),
-                  style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.75))),
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.75))),
             ]),
 
             const SizedBox(height: 16),
@@ -572,9 +572,9 @@ class _ResultSheetState extends State<_ResultSheet> {
                 if (widget.fromMemory)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.12),
+                    decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppTheme.primary.withOpacity(0.4))),
+                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.4))),
                     child: const Text('from memory', style: TextStyle(fontSize: 10,
                         color: AppTheme.primary, fontWeight: FontWeight.w500)),
                   ),
@@ -707,8 +707,8 @@ class _MemoryStatusWidgetState extends State<_MemoryStatusWidget> {
     if (_status == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: _color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8), border: Border.all(color: _color.withOpacity(0.3))),
+      decoration: BoxDecoration(color: _color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8), border: Border.all(color: _color.withValues(alpha: 0.3))),
       child: Row(children: [
         Icon(_color == AppTheme.primary ? Icons.memory : Icons.person_add_outlined, size: 14, color: _color),
         const SizedBox(width: 8),
@@ -744,7 +744,7 @@ class _SampleHintCard extends StatelessWidget {
           border: Border.all(color: divider)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Try a sample message', style: TextStyle(fontSize: 12,
-            fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6))),
+            fontWeight: FontWeight.w600, color: cs.onSurface.withValues(alpha: 0.6))),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8, runSpacing: 8,

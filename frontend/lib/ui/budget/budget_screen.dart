@@ -209,8 +209,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(12),
-          border: isOver ? Border.all(color: AppTheme.error.withOpacity(0.4)) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+          border: isOver ? Border.all(color: AppTheme.error.withValues(alpha: 0.4)) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,13 +221,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 Row(children: [
                   Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(color: barColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: barColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                     child: Icon(_categoryIcon(category), size: 16, color: barColor),
                   ),
                   const SizedBox(width: 10),
                   Text(category, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
                 ]),
-                Icon(Icons.edit_outlined, size: 14, color: cs.onSurface.withOpacity(0.5)),
+                Icon(Icons.edit_outlined, size: 14, color: cs.onSurface.withValues(alpha: 0.5)),
               ],
             ),
             const SizedBox(height: 12),
@@ -245,7 +245,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('${AppConstants.currency} ${fmt.format(spent)} of ${fmt.format(limit)}',
-                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                    style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
                 Text(
                   isOver
                       ? 'Over by ${AppConstants.currency} ${fmt.format(spent - limit)}'
@@ -257,7 +257,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
             ),
             const SizedBox(height: 2),
             Text('${(percent * 100).clamp(0, 999).toStringAsFixed(1)}% used',
-                style: TextStyle(fontSize: 11, color: isOver ? AppTheme.error : cs.onSurface.withOpacity(0.5))),
+                style: TextStyle(fontSize: 11, color: isOver ? AppTheme.error : cs.onSurface.withValues(alpha: 0.5))),
           ],
         ),
       ),
@@ -279,14 +279,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text('Spending Without a Budget',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.6))),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface.withValues(alpha: 0.6))),
           ),
           ...unbudgeted.map((e) => Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: cs.surface, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.warning.withOpacity(0.4)),
+              border: Border.all(color: AppTheme.warning.withValues(alpha: 0.4)),
             ),
             child: Row(children: [
               Icon(_categoryIcon(e.key), size: 18, color: AppTheme.warning),
@@ -312,12 +312,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
     final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.pie_chart_outline, size: 52, color: cs.onSurface.withOpacity(0.4)),
+        Icon(Icons.pie_chart_outline, size: 52, color: cs.onSurface.withValues(alpha: 0.4)),
         const SizedBox(height: 12),
         Text('No budgets set yet.', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
         const SizedBox(height: 6),
         Text('Tap the button above to set spending\nlimits for each category.',
-            textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+            textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
         const SizedBox(height: 20),
         ElevatedButton.icon(
           onPressed: () => Navigator.pushNamed(context, AppRoutes.addBudget).then((_) => _refresh()),

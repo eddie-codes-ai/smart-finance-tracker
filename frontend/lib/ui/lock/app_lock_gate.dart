@@ -130,7 +130,7 @@ class _LockCurtain extends StatelessWidget {
                 width: 88,
                 height: 88,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: const Icon(Icons.lock_outline, size: 44, color: Colors.white),
@@ -141,7 +141,7 @@ class _LockCurtain extends StatelessWidget {
                       color: Colors.white)),
               const SizedBox(height: 8),
               Text('Locked',
-                  style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.7))),
+                  style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.7))),
               if (onUnlock != null) ...[
                 const SizedBox(height: 32),
                 ElevatedButton.icon(

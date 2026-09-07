@@ -76,7 +76,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         const SizedBox(height: 10),
         Text('Enter your reset code and choose a new password.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurface.withOpacity(0.55), fontSize: 14)),
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.55), fontSize: 14)),
         const SizedBox(height: 28),
 
         TextField(controller: _emailController, keyboardType: TextInputType.emailAddress,
@@ -137,7 +137,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         const SizedBox(height: 12),
         Text('Your password has been updated.\nYou can now log in with your new password.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurface.withOpacity(0.55), fontSize: 14)),
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.55), fontSize: 14)),
         const SizedBox(height: 40),
         ElevatedButton(
           onPressed: () => Navigator.pushNamedAndRemoveUntil(

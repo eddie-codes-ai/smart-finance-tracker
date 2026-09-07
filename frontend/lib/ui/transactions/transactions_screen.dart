@@ -104,7 +104,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           child: TabBar(
             controller: _tabController,
             labelColor: AppTheme.primary,
-            unselectedLabelColor: cs.onSurface.withOpacity(0.5),
+            unselectedLabelColor: cs.onSurface.withValues(alpha: 0.5),
             indicatorColor: AppTheme.primary,
             tabs: const [Tab(text: 'All'), Tab(text: 'Income'), Tab(text: 'Expenses'), Tab(text: 'Savings')],
           ),
@@ -220,11 +220,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))]),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))]),
       child: Row(
         children: [
           Container(width: 42, height: 42,
-              decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.savings_outlined, size: 20, color: AppTheme.primary)),
           const SizedBox(width: 12),
           Expanded(
@@ -233,7 +233,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
               Text(t.subLabel.isNotEmpty ? '${t.subLabel} · $dateFmt' : dateFmt,
-                  style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+                  style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
             ]),
           ),
           Text('- ${AppConstants.currency} ${fmt.format(t.amount)}',
@@ -291,12 +291,12 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))]),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))]),
       child: Row(
         children: [
           Container(width: 42, height: 42,
               decoration: BoxDecoration(
-                  color: (t.isIncome ? AppTheme.success : AppTheme.error).withOpacity(0.1),
+                  color: (t.isIncome ? AppTheme.success : AppTheme.error).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10)),
               child: Icon(t.isIncome ? Icons.arrow_downward : _categoryIcon(t.category),
                   size: 20, color: t.isIncome ? AppTheme.success : AppTheme.error)),
@@ -307,7 +307,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
               Text(t.isIncome ? '${t.subLabel} · $dateFmt' : '${t.category} · $dateFmt',
-                  style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+                  style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
             ]),
           ),
           Text('${t.isIncome ? '+' : '-'} ${AppConstants.currency} ${fmt.format(t.amount)}',
@@ -317,7 +317,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             const SizedBox(width: 8),
             GestureDetector(onTap: onEdit,
                 child: Container(padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
                     child: const Icon(Icons.edit_outlined, size: 16, color: AppTheme.primary))),
           ],
         ],
@@ -331,8 +331,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2))),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
         Text('${AppConstants.currency} ${fmt.format(amount)}',
@@ -351,10 +351,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     }
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(type == 'savings' ? Icons.savings_outlined : Icons.receipt_long_outlined,
-          size: 52, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+          size: 52, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
       const SizedBox(height: 12),
       Text(message, textAlign: TextAlign.center,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
     ]));
   }
 

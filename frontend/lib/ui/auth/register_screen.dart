@@ -78,7 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary)),
             const SizedBox(height: 4),
             Text('Create your free account', textAlign: TextAlign.center,
-                style: TextStyle(color: cs.onSurface.withOpacity(0.45))),
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.45))),
             const SizedBox(height: 32),
 
             // Username
@@ -157,7 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text('Already have an account? ',
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                    style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
                 GestureDetector(
                   onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
                   child: const Text('Log In',

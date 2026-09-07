@@ -409,7 +409,7 @@ class _HelbPlannerScreenState extends State<HelbPlannerScreen>
       Center(child:Chip(
         avatar:Icon(_statusIcon(status),color:sc,size:18),
         label:Text(status,style:TextStyle(color:sc,fontWeight:FontWeight.bold)),
-        backgroundColor:sc.withOpacity(0.1),side:BorderSide(color:sc.withOpacity(0.3)))),
+        backgroundColor:sc.withValues(alpha: 0.1),side:BorderSide(color:sc.withValues(alpha: 0.3)))),
       const SizedBox(height:10),
       Card(color:pct>30?Colors.green.shade50:pct>10?Colors.orange.shade50:Colors.red.shade50,elevation:0,
         shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12),
@@ -490,7 +490,7 @@ class _HelbPlannerScreenState extends State<HelbPlannerScreen>
             const SizedBox(height:3),Text(sl,style:TextStyle(fontSize:12,color:Colors.grey.shade700)),
           ])),
         ]),
-        const SizedBox(height:10),Divider(height:1,color:bc.withOpacity(0.4)),const SizedBox(height:8),
+        const SizedBox(height:10),Divider(height:1,color:bc.withValues(alpha: 0.4)),const SizedBox(height:8),
         Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
           Text('Current daily spend rate',style:TextStyle(fontSize:12,color:Colors.grey.shade600)),
           Text('KES ${_fmt.format(dr)}/day',style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600)),
@@ -554,7 +554,7 @@ class _HelbPlannerScreenState extends State<HelbPlannerScreen>
         Icon(_catIcon(cat),size:20,color:bc),const SizedBox(width:8),
         Expanded(child:Text(cat,style:const TextStyle(fontWeight:FontWeight.w600,fontSize:15))),
         Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),
-          decoration:BoxDecoration(color:bc.withOpacity(0.1),borderRadius:BorderRadius.circular(12),border:Border.all(color:bc.withOpacity(0.4))),
+          decoration:BoxDecoration(color:bc.withValues(alpha: 0.1),borderRadius:BorderRadius.circular(12),border:Border.all(color:bc.withValues(alpha: 0.4))),
           child:Text(sl,style:TextStyle(fontSize:11,color:bc,fontWeight:FontWeight.bold))),
       ]),
       const SizedBox(height:10),

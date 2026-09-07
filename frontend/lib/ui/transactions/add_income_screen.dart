@@ -187,7 +187,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
             children: [
               // ── Amount ──────────────────────────────────────────────────
               Text('Amount (KES)', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _amountController,
@@ -210,11 +210,11 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               // ── Income Type ──────────────────────────────────────────────
               Row(children: [
                 Text('Income Type', style: TextStyle(fontWeight: FontWeight.w600,
-                    color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                    color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
                 const Spacer(),
                 if (!_typesLoading)
                   Text('Long press custom to delete', style: TextStyle(
-                      fontSize: 10, color: cs.onSurface.withOpacity(0.4), fontStyle: FontStyle.italic)),
+                      fontSize: 10, color: cs.onSurface.withValues(alpha: 0.4), fontStyle: FontStyle.italic)),
               ]),
               const SizedBox(height: 8),
 
@@ -237,7 +237,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                                 border: Border.all(color: isSelected
                                     ? AppTheme.primary
                                     : type.isCustom
-                                        ? AppTheme.primary.withOpacity(0.4)
+                                        ? AppTheme.primary.withValues(alpha: 0.4)
                                         : dividerColor),
                               ),
                               child: Text(_typeLabel(type.name), style: TextStyle(
@@ -255,7 +255,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
                               color: cs.surface, borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppTheme.primary.withOpacity(0.4)),
+                              border: Border.all(color: AppTheme.primary.withValues(alpha: 0.4)),
                             ),
                             child: Row(mainAxisSize: MainAxisSize.min, children: [
                               Icon(Icons.add, size: 14, color: AppTheme.primary),
@@ -272,7 +272,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
               // ── Description ──────────────────────────────────────────────
               Text('Description (optional)', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _descriptionController,

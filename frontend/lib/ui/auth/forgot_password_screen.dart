@@ -63,7 +63,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 8),
         Text('Enter the email address linked to your account.\nWe will send you a 6-digit reset code.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurface.withOpacity(0.55), fontSize: 14)),
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.55), fontSize: 14)),
         const SizedBox(height: 36),
         TextField(
           controller: _emailController,
@@ -107,7 +107,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Text('A 6-digit reset code has been sent to\n${_emailController.text.trim()}\n\n'
             'Check your inbox and spam folder.\nThe code expires in 15 minutes.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurface.withOpacity(0.55), fontSize: 14)),
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.55), fontSize: 14)),
         const SizedBox(height: 36),
         ElevatedButton(
           onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.resetPassword),

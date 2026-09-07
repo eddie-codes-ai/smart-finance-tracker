@@ -83,9 +83,9 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.08),
+                  color: AppTheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
+                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
                 ),
                 child: Row(children: [
                   const Icon(Icons.calendar_today_outlined, size: 16, color: AppTheme.primary),
@@ -99,10 +99,10 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
 
               // ── Category dropdown ────────────────────────────────────────
               Text('Category', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 decoration: const InputDecoration(prefixIcon: Icon(Icons.category_outlined)),
                 items: AppConstants.expenseCategories
                     .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
@@ -114,7 +114,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
 
               // ── Limit amount ─────────────────────────────────────────────
               Text('Monthly Spending Limit (KES)', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _limitController,
@@ -135,7 +135,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               const SizedBox(height: 12),
 
               // ── Quick amount chips ────────────────────────────────────────
-              Text('Quick amounts:', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+              Text('Quick amounts:', style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8, runSpacing: 8,

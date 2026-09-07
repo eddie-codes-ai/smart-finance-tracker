@@ -100,10 +100,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$greeting,', style: TextStyle(fontSize: 14, color: cs.onSurface.withOpacity(0.6))),
+          Text('$greeting,', style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.6))),
           Text(username, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: cs.onSurface)),
           Text(DateFormat('MMMM yyyy').format(DateTime.now()),
-              style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
         ],
       ),
     );
@@ -115,10 +115,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [color.withOpacity(0.85), color],
+        gradient: LinearGradient(colors: [color.withValues(alpha: 0.85), color],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Text('Financial Score', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
                 child: Text(result.category, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
               ),
             ],
@@ -185,10 +185,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppTheme.primary.withOpacity(0.7), AppTheme.primary],
+        gradient: LinearGradient(colors: [AppTheme.primary.withValues(alpha: 0.7), AppTheme.primary],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +199,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Text('Financial Score', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
                 child: const Text('No Data', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
               ),
             ],
@@ -258,7 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.rocket_launch_outlined, size: 20, color: AppTheme.primary),
               ),
               const SizedBox(width: 10),
@@ -268,7 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text('Get Started', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
                     Text('Complete these steps to set up your tracker',
-                        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                        style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
                   ],
                 ),
               ),
@@ -295,7 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.06), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
             child: Row(
               children: [
                 const Icon(Icons.lightbulb_outline, size: 16, color: AppTheme.primary),
@@ -303,7 +303,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: RichText(
                     text: TextSpan(
-                      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+                      style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)),
                       children: const [
                         TextSpan(text: 'Tip: ', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary)),
                         TextSpan(text: 'Your financial score updates automatically after you add income and expenses.'),
@@ -331,16 +331,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isDone ? AppTheme.primary.withOpacity(0.05) : bg,
+          color: isDone ? AppTheme.primary.withValues(alpha: 0.05) : bg,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isDone ? AppTheme.primary.withOpacity(0.2) : divider),
+          border: Border.all(color: isDone ? AppTheme.primary.withValues(alpha: 0.2) : divider),
         ),
         child: Row(
           children: [
             Container(
               width: 28, height: 28,
               decoration: BoxDecoration(
-                  color: isDone ? AppTheme.primary : AppTheme.primary.withOpacity(0.12), shape: BoxShape.circle),
+                  color: isDone ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.12), shape: BoxShape.circle),
               child: Center(
                 child: isDone
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
@@ -349,7 +349,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Icon(icon, size: 18, color: isDone ? AppTheme.primary : cs.onSurface.withOpacity(0.5)),
+            Icon(icon, size: 18, color: isDone ? AppTheme.primary : cs.onSurface.withValues(alpha: 0.5)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -358,12 +358,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13,
                       color: isDone ? AppTheme.primary : cs.onSurface,
                       decoration: isDone ? TextDecoration.lineThrough : null)),
-                  Text(subtitle, style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+                  Text(subtitle, style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
                 ],
               ),
             ),
             Icon(isDone ? Icons.check_circle : Icons.chevron_right,
-                size: 18, color: isDone ? AppTheme.primary : cs.onSurface.withOpacity(0.5)),
+                size: 18, color: isDone ? AppTheme.primary : cs.onSurface.withValues(alpha: 0.5)),
           ],
         ),
       ),
@@ -403,17 +403,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cs.surface, borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: isEmpty ? cs.onSurface.withOpacity(0.3) : color),
+          Icon(icon, size: 18, color: isEmpty ? cs.onSurface.withValues(alpha: 0.3) : color),
           const SizedBox(height: 8),
-          Text(label, style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+          Text(label, style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
           const SizedBox(height: 2),
           isEmpty
-              ? Text('KES 0', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.3)))
+              ? Text('KES 0', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface.withValues(alpha: 0.3)))
               : Text(amount, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
@@ -437,8 +437,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.3)),
+          color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -495,14 +495,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.08), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.08), shape: BoxShape.circle),
                 child: const Icon(Icons.receipt_long_outlined, size: 32, color: AppTheme.primary),
               ),
               const SizedBox(height: 14),
               Text('No transactions yet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
               const SizedBox(height: 6),
               Text('Start logging your income and expenses\nto track your financial health.',
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
               const SizedBox(height: 16),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, AppRoutes.addIncome),
@@ -534,14 +534,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: cs.surface, borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
           ),
           child: Row(
             children: [
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                    color: (t.isIncome ? AppTheme.success : AppTheme.error).withOpacity(0.1),
+                    color: (t.isIncome ? AppTheme.success : AppTheme.error).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10)),
                 child: Icon(t.isIncome ? Icons.arrow_downward : Icons.arrow_upward,
                     size: 18, color: t.isIncome ? AppTheme.success : AppTheme.error),
@@ -554,7 +554,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Text(t.label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: cs.onSurface),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(t.isIncome ? dateFmt : '${t.category} · $dateFmt',
-                        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                        style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
                   ],
                 ),
               ),

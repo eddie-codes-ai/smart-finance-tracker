@@ -275,7 +275,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // ── Section label ─────────────────────────────────────────────────
           Text('UPDATE YOUR DETAILS', style: TextStyle(fontSize: 12,
-              fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.5), letterSpacing: 1.2)),
+              fontWeight: FontWeight.w700, color: cs.onSurface.withValues(alpha: 0.5), letterSpacing: 1.2)),
           const SizedBox(height: 12),
 
           _buildSection(icon: Icons.person_outline, title: 'Change Username',
@@ -327,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // ── Appearance ────────────────────────────────────────────────────
           Text('APPEARANCE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-              color: cs.onSurface.withOpacity(0.5), letterSpacing: 1.2)),
+              color: cs.onSurface.withValues(alpha: 0.5), letterSpacing: 1.2)),
           const SizedBox(height: 12),
 
           Container(
@@ -335,7 +335,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(
               color: cs.surface, borderRadius: BorderRadius.circular(12),
               border: Border.all(color: divider),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           if (user != null)
             Center(child: Text('Member since ${_formatDate(user.createdAt)}',
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5)))),
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5)))),
 
           const SizedBox(height: 32),
 
@@ -378,8 +378,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.04), borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
+                color: Colors.red.withValues(alpha: 0.04), borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Row(children: [
@@ -389,7 +389,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ]),
                 const SizedBox(height: 8),
                 Text('Permanently delete your account and all data. You will have 96 hours to cancel after requesting deletion.',
-                    style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+                    style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
                 const SizedBox(height: 16),
                 SizedBox(width: double.infinity,
                     child: OutlinedButton.icon(
@@ -425,15 +425,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.primary.withOpacity(0.1) : Colors.transparent,
+          color: selected ? AppTheme.primary.withValues(alpha: 0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: selected ? AppTheme.primary : divider, width: selected ? 1.5 : 1),
         ),
         child: Column(children: [
-          Icon(icon, size: 22, color: selected ? AppTheme.primary : cs.onSurface.withOpacity(0.5)),
+          Icon(icon, size: 22, color: selected ? AppTheme.primary : cs.onSurface.withValues(alpha: 0.5)),
           const SizedBox(height: 6),
           Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-              color: selected ? AppTheme.primary : cs.onSurface.withOpacity(0.5))),
+              color: selected ? AppTheme.primary : cs.onSurface.withValues(alpha: 0.5))),
         ]),
       ),
     );
@@ -450,8 +450,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.withOpacity(0.3))),
+      decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Row(children: [
           Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
@@ -463,7 +463,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(dueDateStr.isNotEmpty
             ? 'Your account will be permanently deleted on $dueDateStr. Cancel below to keep it.'
             : 'Your account is scheduled for deletion. Cancel below to keep it.',
-            style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6))),
+            style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
         const SizedBox(height: 12),
         SizedBox(width: double.infinity,
             child: ElevatedButton.icon(
@@ -484,12 +484,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppTheme.primary, AppTheme.primary.withOpacity(0.75)],
+        gradient: LinearGradient(colors: [AppTheme.primary, AppTheme.primary.withValues(alpha: 0.75)],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(children: [
-        CircleAvatar(radius: 30, backgroundColor: Colors.white.withOpacity(0.2),
+        CircleAvatar(radius: 30, backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: Text((user?.username ?? '?')[0].toUpperCase(),
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white))),
         const SizedBox(width: 16),
@@ -498,7 +498,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 4),
           Text(user?.email ?? 'No email set',
-              style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.85))),
+              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.85))),
         ])),
       ]),
     );
@@ -514,8 +514,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: cs.surface, borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: expanded ? AppTheme.primary.withOpacity(0.4) : Colors.transparent, width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+            color: expanded ? AppTheme.primary.withValues(alpha: 0.4) : Colors.transparent, width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(children: [
         InkWell(
@@ -528,11 +528,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ])),
               Icon(expanded ? Icons.expand_less : Icons.expand_more,
-                  color: cs.onSurface.withOpacity(0.5)),
+                  color: cs.onSurface.withValues(alpha: 0.5)),
             ]),
           ),
         ),
@@ -552,18 +552,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: cs.surface, borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
-          Icon(Icons.fingerprint, color: cs.onSurface.withOpacity(0.35), size: 22),
+          Icon(Icons.fingerprint, color: cs.onSurface.withValues(alpha: 0.35), size: 22),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('App Lock', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                color: cs.onSurface.withOpacity(0.5))),
+                color: cs.onSurface.withValues(alpha: 0.5))),
             const SizedBox(height: 2),
             Text('This device has no fingerprint, face unlock or screen lock set up.',
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5))),
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
           ])),
         ]),
       );
@@ -574,7 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: cs.surface, borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(children: [
@@ -585,7 +585,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: cs.onSurface)),
           const SizedBox(height: 2),
           Text('Ask for your $method before showing your finances',
-              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
         ])),
         if (_togglingLock)
           const Padding(padding: EdgeInsets.only(right: 8),
@@ -613,7 +613,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Text(
         'Your months and daily spending are grouped using this zone. It stays '
         'fixed when you travel, so past months never change.',
-        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+        style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)),
       ),
       const SizedBox(height: 14),
 
@@ -622,9 +622,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppTheme.info.withOpacity(0.08),
+            color: AppTheme.info.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.info.withOpacity(0.35)),
+            border: Border.all(color: AppTheme.info.withValues(alpha: 0.35)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
@@ -646,7 +646,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Icon(Icons.check_circle_outline, size: 16, color: AppTheme.success),
           const SizedBox(width: 8),
           Expanded(child: Text('Matches your device.',
-              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)))),
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)))),
         ]),
         const SizedBox(height: 16),
       ],
@@ -678,13 +678,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Text('Time zone list unavailable. Check your connection.',
-              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
         )
       else if (shown.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Text('No time zone matches "${_zoneSearchCtrl.text.trim()}".',
-              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6))),
         )
       else
         Container(
@@ -719,7 +719,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (matches.length > shown.length) ...[
         const SizedBox(height: 8),
         Text('${matches.length - shown.length} more — keep typing to narrow it down.',
-            style: TextStyle(fontSize: 11.5, color: cs.onSurface.withOpacity(0.5))),
+            style: TextStyle(fontSize: 11.5, color: cs.onSurface.withValues(alpha: 0.5))),
       ],
 
       if (_savingTimezone) ...[
@@ -751,14 +751,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (currentEmail == null || currentEmail.isEmpty)
         Container(
           padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(color: AppTheme.warning.withOpacity(0.1),
+          decoration: BoxDecoration(color: AppTheme.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.warning.withOpacity(0.4))),
+              border: Border.all(color: AppTheme.warning.withValues(alpha: 0.4))),
           child: Row(children: [
             Icon(Icons.warning_amber_outlined, color: AppTheme.warning, size: 18),
             const SizedBox(width: 8),
             Expanded(child: Text('No email set. Add one to enable password recovery.',
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)))),
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)))),
           ]),
         ),
       TextField(controller: _emailCtrl, keyboardType: TextInputType.emailAddress,

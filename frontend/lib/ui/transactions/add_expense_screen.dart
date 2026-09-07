@@ -208,7 +208,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             children: [
               // ── Amount ──────────────────────────────────────────────────
               Text('Amount (KES)', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _amountController,
@@ -231,11 +231,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               // ── Category ─────────────────────────────────────────────────
               Row(children: [
                 Text('Category', style: TextStyle(fontWeight: FontWeight.w600,
-                    color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                    color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
                 const Spacer(),
                 if (!_categoriesLoading)
                   Text('Long press custom to delete', style: TextStyle(
-                      fontSize: 10, color: cs.onSurface.withOpacity(0.4), fontStyle: FontStyle.italic)),
+                      fontSize: 10, color: cs.onSurface.withValues(alpha: 0.4), fontStyle: FontStyle.italic)),
               ]),
               const SizedBox(height: 8),
 
@@ -259,7 +259,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 border: Border.all(color: isSelected
                                     ? AppTheme.primary
                                     : cat.isCustom
-                                        ? AppTheme.primary.withOpacity(0.4)
+                                        ? AppTheme.primary.withValues(alpha: 0.4)
                                         : dividerColor),
                               ),
                               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -267,7 +267,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                     size: 14,
                                     color: isSelected
                                         ? Colors.white
-                                        : cat.isCustom ? AppTheme.primary : cs.onSurface.withOpacity(0.6)),
+                                        : cat.isCustom ? AppTheme.primary : cs.onSurface.withValues(alpha: 0.6)),
                                 const SizedBox(width: 4),
                                 Flexible(child: Text(cat.name,
                                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
@@ -283,7 +283,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: cs.surface, borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppTheme.primary.withOpacity(0.4)),
+                              border: Border.all(color: AppTheme.primary.withValues(alpha: 0.4)),
                             ),
                             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                               Icon(Icons.add, size: 14, color: AppTheme.primary),
@@ -300,10 +300,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
               // ── Expense Type ─────────────────────────────────────────────
               Text('Expense Type', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 4),
               Text('One-time expenses are excluded from daily budget calculations.',
-                  style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6))),
+                  style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.6))),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8, runSpacing: 8,
@@ -333,10 +333,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               if (_selectedExpenseType == 'recurring') ...[
                 const SizedBox(height: 20),
                 Text('Recurrence Interval', style: TextStyle(fontWeight: FontWeight.w600,
-                    color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                    color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedRecurrence,
+                  initialValue: _selectedRecurrence,
                   hint: const Text('Select interval'),
                   decoration: const InputDecoration(prefixIcon: Icon(Icons.repeat)),
                   items: _recurrenceOptions.map((r) => DropdownMenuItem(
@@ -355,7 +355,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
               // ── Description ──────────────────────────────────────────────
               Text('Description (optional)', style: TextStyle(fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withOpacity(0.6), fontSize: 13)),
+                  color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _descriptionController,

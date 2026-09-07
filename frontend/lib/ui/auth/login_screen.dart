@@ -82,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 'Manage your money. Build your future.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: cs.onSurface.withOpacity(0.45), fontSize: 14),
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.45), fontSize: 14),
               ),
 
               const SizedBox(height: 40),
@@ -144,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Expanded(child: Divider()),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('OR', style: TextStyle(color: cs.onSurface.withOpacity(0.45), fontSize: 13)),
+                  child: Text('OR', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.45), fontSize: 13)),
                 ),
                 const Expanded(child: Divider()),
               ]),
@@ -156,10 +156,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: auth.isLoading ? null : _signInWithGoogle,
                 icon: const Text('G', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF4285F4))),
                 label: Text('Sign in with Google',
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.87), fontSize: 15)),
+                    style: TextStyle(color: cs.onSurface.withValues(alpha: 0.87), fontSize: 15)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: cs.onSurface.withOpacity(0.2)),
+                  side: BorderSide(color: cs.onSurface.withValues(alpha: 0.2)),
                   minimumSize: const Size(double.infinity, 0),
                 ),
               ),
@@ -171,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text("Don't have an account? ",
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                      style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
                   GestureDetector(
                     onTap: () => Navigator.pushNamed(context, AppRoutes.register),
                     child: const Text('Register',
