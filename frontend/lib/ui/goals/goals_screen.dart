@@ -270,18 +270,26 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     builder: (context, prov, _) => ElevatedButton.icon(
                       onPressed: prov.isContributing ? null : () async {
                         if (!formKey.currentState!.validate()) return;
+                        // Looked up before the await, so nothing touches a
+                        // BuildContext afterwards. The old `mounted` check was
+                        // the screen's, not the sheet's - and this sheet is
+                        // dismissible and draggable, so it can be gone before
+                        // the request returns while the screen behind it stays
+                        // perfectly alive, passing the guard.
+                        final navigator = Navigator.of(ctx);
+                        final messenger = ScaffoldMessenger.of(ctx);
+                        final analysis  = context.read<AnalysisProvider>();
                         final success = await prov.addContribution(
                           goalId: goal.id,
                           amount: double.parse(amountController.text.trim()),
                           note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
                         );
-                        if (!mounted) return;
-                        Navigator.pop(ctx);
+                        navigator.pop();
                         if (success) {
                           final now = DateTime.now();
-                          context.read<AnalysisProvider>().analyze(month: now.month, year: now.year);
+                          analysis.analyze(month: now.month, year: now.year);
                         }
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        messenger.showSnackBar(SnackBar(
                             content: Text(success ? 'Contribution added to ${goal.name}!' : prov.errorMessage ?? 'Failed to add contribution.'),
                             backgroundColor: success ? AppTheme.success : AppTheme.error,
                             behavior: SnackBarBehavior.floating));

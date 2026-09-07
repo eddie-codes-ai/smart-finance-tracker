@@ -48,24 +48,29 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   Future<void> _loadMonthlyData() async {
+    // Both providers are read once, before the first await. context.read
+    // returns the same object every time, so the per-iteration lookups were
+    // redundant as well as unsafe: this method makes twelve sequential
+    // requests, which is ample time to switch tabs and leave the context
+    // deactivated underneath it.
+    final incProvider = context.read<IncomeProvider>();
+    final expProvider = context.read<ExpenseProvider>();
+
     setState(() => _monthlyLoading = true);
     final now = DateTime.now();
     final List<Map<String, dynamic>> data = [];
     for (int i = 5; i >= 0; i--) {
       int m = now.month - i; int y = now.year;
       while (m <= 0) { m += 12; y -= 1; }
-      final incProvider = context.read<IncomeProvider>();
-      final expProvider = context.read<ExpenseProvider>();
       await incProvider.fetchIncome(month: m, year: y);
       await expProvider.fetchExpenses(month: m, year: y);
       data.add({'label': DateFormat('MMM').format(DateTime(y, m)), 'income': incProvider.total, 'expenses': expProvider.total});
     }
-    final curInc = context.read<IncomeProvider>();
-    final curExp = context.read<ExpenseProvider>();
+    // Put the providers back on the current month - other screens share them.
     final now2 = DateTime.now();
     await Future.wait([
-      curInc.fetchIncome(month: now2.month, year: now2.year),
-      curExp.fetchExpenses(month: now2.month, year: now2.year),
+      incProvider.fetchIncome(month: now2.month, year: now2.year),
+      expProvider.fetchExpenses(month: now2.month, year: now2.year),
     ]);
     if (mounted) setState(() { _monthlyData..clear()..addAll(data); _monthlyLoading = false; });
   }

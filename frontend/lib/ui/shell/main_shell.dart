@@ -39,10 +39,16 @@ class _MainShellState extends State<MainShell> {
                 child: const Text('Sign Out')),
           ],
         ));
-    if (confirmed == true && mounted) {
-      await context.read<AuthProvider>().logout();
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
-    }
+    if (confirmed != true || !mounted) return;
+
+    // logout() calls the server before clearing local state, and that request
+    // has a 30-second timeout - long enough for this shell to be disposed
+    // while it is in flight. The old code checked mounted before the await
+    // rather than after it, which is the half that does not help.
+    final navigator = Navigator.of(context);
+    await context.read<AuthProvider>().logout();
+    if (!mounted) return;
+    navigator.pushReplacementNamed(AppRoutes.login);
   }
 
   @override
